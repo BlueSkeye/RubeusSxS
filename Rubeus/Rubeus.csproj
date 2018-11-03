@@ -97,7 +97,7 @@
     <Compile Include="lib\krb_structures\Ticket.cs" />
     <Compile Include="lib\LSA.cs" />
     <Compile Include="lib\LSAException.cs" />
-    <Compile Include="lib\LSAReturnCode.cs" />
+    <Compile Include="lib\NativeReturnCode.cs" />
     <Compile Include="lib\Networking.cs" />
     <Compile Include="lib\Renew.cs" />
     <Compile Include="lib\Reset.cs" />

@@ -15,9 +15,9 @@ namespace Rubeus
         /// <param name="code"></param>
         /// <param name="result"></param>
         /// <returns></returns>
-        private static T LSACall<T>(Rubeus.lib.LSAReturnCode code, T result)
+        private static T LSACall<T>(Rubeus.lib.NativeReturnCode code, T result)
         {
-            if (Rubeus.lib.LSAReturnCode.STATUS_SUCCESS == code) { return result; }
+            if (Rubeus.lib.NativeReturnCode.STATUS_SUCCESS == code) { return result; }
             throw new Rubeus.lib.LSAException(code);
         }
 
@@ -555,8 +555,8 @@ namespace Rubeus
                                                 Console.WriteLine();
                                             }
                                             else {
-                                                string errorMessage = new Win32Exception((int)winError).Message;
-                                                Console.WriteLine("\r\n    [X] Error {0} calling LsaCallAuthenticationPackage() for target \"{1}\" : {2}", winError, serverName, errorMessage);
+                                                Console.WriteLine("\r\n    [X] Error {0} calling LsaCallAuthenticationPackage() for target \"{1}\" : {2}",
+                                                    winError, serverName, Helpers.GetNativeErrorMessage(winError));
                                             }
 
                                             // clean up
@@ -792,8 +792,8 @@ namespace Rubeus
                         Console.WriteLine("\r\n");
                     }
                     else {
-                        string errorMessage = new Win32Exception((int)winError).Message;
-                        Console.WriteLine("\r\n[X] Error {0} calling LsaCallAuthenticationPackage() for target \"{1}\" : {2}", winError, serverName, errorMessage);
+                        Console.WriteLine("\r\n[X] Error {0} calling LsaCallAuthenticationPackage() for target \"{1}\" : {2}",
+                            winError, serverName, Helpers.GetNativeErrorMessage(winError));
                     }
 
                     // clean up
@@ -1010,8 +1010,8 @@ namespace Rubeus
                                                     }
                                                 }
                                                 else {
-                                                    string errorMessage = new Win32Exception((int)winError).Message;
-                                                    Console.WriteLine("\r\n[X] Error {0} calling LsaCallAuthenticationPackage() for target \"{1}\" : {2}", winError, serverName, errorMessage);
+                                                    Console.WriteLine("\r\n[X] Error {0} calling LsaCallAuthenticationPackage() for target \"{1}\" : {2}",
+                                                        winError, serverName, Helpers.GetNativeErrorMessage(winError));
                                                 }
 
                                                 // clean up
@@ -1217,10 +1217,9 @@ namespace Rubeus
 
                 returnedSessionKey = sessionKey;
             }
-            else
-            {
-                string errorMessage = new Win32Exception((int)winError).Message;
-                Console.WriteLine("\r\n[X] Error {0} calling LsaCallAuthenticationPackage() for target \"{1}\" : {2}", winError, target, errorMessage);
+            else {
+                Console.WriteLine("\r\n[X] Error {0} calling LsaCallAuthenticationPackage() for target \"{1}\" : {2}",
+                    winError, target, Helpers.GetNativeErrorMessage(winError));
                 returnedSessionKey = null;
             }
 

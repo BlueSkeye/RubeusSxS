@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 
+using Rubeus.lib;
+
 namespace Rubeus
 {
     public class Interop
@@ -1044,9 +1046,8 @@ namespace Rubeus
         public delegate int KERB_CHECKSUM_Finish(ref IntPtr pContext);
         public delegate int KERB_CHECKSUM_InitializeEx(byte[] Key, int KeySize, int KeyUsage, out IntPtr pContext);
 
-
         [DllImport("Netapi32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        public static extern int DsGetDcName(
+        internal static extern NativeReturnCode DsGetDcName(
             [MarshalAs(UnmanagedType.LPTStr)] string ComputerName,
             [MarshalAs(UnmanagedType.LPTStr)] string DomainName,
             [In] int DomainGuid,
@@ -1147,7 +1148,7 @@ namespace Rubeus
         /// logon application context and close the connection by calling the
         /// LsaDeregisterLogonProcess function.</remarks>
         [DllImport("secur32.dll", SetLastError = true)]
-        internal static extern Rubeus.lib.LSAReturnCode LsaRegisterLogonProcess(
+        internal static extern Rubeus.lib.NativeReturnCode LsaRegisterLogonProcess(
             LSA_STRING_IN LogonProcessName,
             out IntPtr LsaHandle,
             out ulong SecurityMode

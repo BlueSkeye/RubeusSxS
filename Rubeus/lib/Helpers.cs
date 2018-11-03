@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Security.Principal;
@@ -49,6 +50,11 @@ namespace Rubeus
                 return (name == "NT AUTHORITY\\SYSTEM");
             }
             return false;
+        }
+
+        internal static string GetNativeErrorMessage(uint nativeErrorCode)
+        {
+            return new Win32Exception((int)nativeErrorCode).Message;
         }
 
         public static bool IsBase64String(string s)

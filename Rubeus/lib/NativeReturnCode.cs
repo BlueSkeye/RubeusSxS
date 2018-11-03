@@ -1,8 +1,9 @@
 ﻿
 namespace Rubeus.lib
 {
-    internal enum LSAReturnCode : uint
+    internal enum NativeReturnCode : uint
     {
+        ERROR_SUCCESS = 0,
         STATUS_SUCCESS = 0,
         /// <summary>The specified logon process name exceeds 127 bytes.</summary>
         STATUS_NAME_TOO_LONG = 0xC0000106,
