@@ -13,27 +13,30 @@ namespace Rubeus.Commands
             string domain = "";
             string dc = "";
             string format = "john";
+            string compositeUserName;
 
-            if (arguments.ContainsKey("/user")) {
-                string[] parts = arguments["/user"].Split('\\');
-                if (parts.Length == 2) {
-                    domain = parts[0];
-                    user = parts[1];
+            // TODO : Clarify in original source code.
+            if (arguments.TryGetValue("/user", out compositeUserName)) {
+                string[] parts = compositeUserName.Split('\\');
+                switch (parts.Length) {
+                    case 2:
+                        domain = parts[0];
+                        user = parts[1];
+                        break;
+                    case 1:
+                        user = compositeUserName;
+                        break;
+                    default:
+                        throw new ApplicationException();
                 }
-                else {
-                    user = arguments["/user"];
-                }
             }
-            if (arguments.ContainsKey("/domain")) {
-                domain = arguments["/domain"];
+            if (string.IsNullOrEmpty(domain)) {
+                // Because we don't want to override the value from the /user parameter unless it is not
+                // explictly stated in the /user argument.
+                arguments.TryGetValue("/domain", out domain);
             }
-            if (arguments.ContainsKey("/dc")) {
-                dc = arguments["/dc"];
-            }
-            if (arguments.ContainsKey("/format")) {
-                format = arguments["/format"];
-            }
-
+            arguments.TryGetValue("/dc", out dc);
+            arguments.TryGetValue("/format", out format);
             if (string.IsNullOrEmpty(user)) {
                 Console.WriteLine("\r\n[X] You must supply a user name!\r\n");
                 return;

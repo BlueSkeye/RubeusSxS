@@ -9,32 +9,32 @@ namespace Rubeus.Commands
 
         public void Execute(Dictionary<string, string> arguments)
         {
-            if (arguments.ContainsKey("/luid")) {
-                string service = "";
+            string luidString;
+
+            if (arguments.TryGetValue("/luid",out luidString)) {
+                string service = string.Empty;
                 if (arguments.ContainsKey("/service")) {
                     service = arguments["/service"];
                 }
                 UInt32 luid = 0;
-                try {
-                    luid = UInt32.Parse(arguments["/luid"]);
-                }
-                catch {
+                if (!UInt32.TryParse(luidString, out luid)) {
                     try {
-                        luid = Convert.ToUInt32(arguments["/luid"], 16);
+                        luid = Convert.ToUInt32(luidString, 16);
                     }
                     catch {
-                        Console.WriteLine("[X] Invalid LUID format ({0})\r\n", arguments["/LUID"]);
+                        Console.WriteLine("[X] Invalid LUID format ({0})\r\n", luidString);
                         return;
                     }
                 }
                 LSA.ListKerberosTicketData(luid, service);
+                return;
             }
-            else if (arguments.ContainsKey("/service")) {
+            if (arguments.ContainsKey("/service")) {
                 LSA.ListKerberosTicketData(0, arguments["/service"]);
+                return;
             }
-            else {
-                LSA.ListKerberosTicketData();
-            }
+            LSA.ListKerberosTicketData();
+            return;
         }
     }
 }

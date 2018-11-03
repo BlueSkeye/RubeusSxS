@@ -1245,7 +1245,6 @@ namespace Rubeus
                 }
                 targetSPN = String.Format("HOST/{0}", domainController);
             }
-
             Interop.SECURITY_HANDLE phCredential = new Interop.SECURITY_HANDLE();
             try {
                 Interop.SECURITY_INTEGER ptsExpiry = new Interop.SECURITY_INTEGER();
@@ -1253,7 +1252,6 @@ namespace Rubeus
 
                 // first get a handle to the Kerberos package
                 int status = Interop.AcquireCredentialsHandle(null, "Kerberos", SECPKG_CRED_OUTBOUND, IntPtr.Zero, IntPtr.Zero, 0, IntPtr.Zero, ref phCredential, ref ptsExpiry);
-
                 if (0 != status) {
                     Console.WriteLine("[X] Error: AcquireCredentialsHandle error: {0}", status);
                     return null;

@@ -17,13 +17,14 @@ namespace Rubeus.Commands
             }
             if (Helpers.IsBase64String(kirbi64)) {
                 LSA.DisplayTicket(new KRB_CRED(Convert.FromBase64String(kirbi64)));
+                return;
             }
-            else if (File.Exists(kirbi64)) {
+            if (File.Exists(kirbi64)) {
                 LSA.DisplayTicket(new KRB_CRED(File.ReadAllBytes(kirbi64)));
+                return;
             }
-            else {
-                Console.WriteLine("\r\n[X] /ticket:X must either be a .kirbi file or a base64 encoded .kirbi\r\n");
-            }
+            Console.WriteLine("\r\n[X] /ticket:X must either be a .kirbi file or a base64 encoded .kirbi\r\n");
+            return;
         }
     }
 }
