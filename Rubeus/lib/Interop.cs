@@ -596,6 +596,11 @@ namespace Rubeus
             public ushort Length;
             public ushort MaximumLength;
             public IntPtr Buffer;
+
+            internal string GetValue()
+            {
+                return Marshal.PtrToStringUni(Buffer, Length / sizeof(char)).Trim();
+            }
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -633,30 +638,47 @@ namespace Rubeus
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct KERB_RETRIEVE_TKT_RESPONSE
+        internal struct KERB_RETRIEVE_TKT_RESPONSE
         {
-            public KERB_EXTERNAL_TICKET Ticket;
+            internal KERB_EXTERNAL_TICKET Ticket;
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct KERB_EXTERNAL_TICKET
+        internal struct KERB_EXTERNAL_TICKET
         {
-            public IntPtr ServiceName;
+            private IntPtr ServiceName;
             public IntPtr TargetName;
             public IntPtr ClientName;
             public LSA_STRING_OUT DomainName;
             public LSA_STRING_OUT TargetDomainName;
             public LSA_STRING_OUT AltTargetDomainName;
             public KERB_CRYPTO_KEY SessionKey;
-            public UInt32 TicketFlags;
-            public UInt32 Flags;
-            public Int64 KeyExpirationTime;
-            public Int64 StartTime;
-            public Int64 EndTime;
-            public Int64 RenewUntil;
-            public Int64 TimeSkew;
-            public Int32 EncodedTicketSize;
+            public uint TicketFlags;
+            public uint Flags;
+            public long KeyExpirationTime;
+            public long StartTime;
+            public long EndTime;
+            public long RenewUntil;
+            public long TimeSkew;
+            public int EncodedTicketSize;
             public IntPtr EncodedTicket;
+
+            public string GetServiceName()
+            {
+                if (IntPtr.Zero == this.ServiceName) {
+                    return string.Empty;
+                }
+                KERB_EXTERNAL_NAME serviceNameStruct = (KERB_EXTERNAL_NAME)Marshal.PtrToStructure(this.ServiceName, typeof(KERB_EXTERNAL_NAME));
+                LSA_STRING_OUT[] names = serviceNameStruct.Names;
+                switch(serviceNameStruct.NameCount) {
+                    case 1:
+                        return names[0].GetValue();
+                    case 2:
+                        return string.Format("{0}/{1}", names[0].GetValue(), names[1].GetValue());
+                    default:
+                        return string.Empty;
+                }
+            }
         }
 
         [StructLayout(LayoutKind.Sequential)]

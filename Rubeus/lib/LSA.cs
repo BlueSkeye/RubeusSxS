@@ -625,19 +625,7 @@ namespace Rubeus
                 // parse the returned pointer into our initial KERB_RETRIEVE_TKT_RESPONSE structure
                 response = (Interop.KERB_RETRIEVE_TKT_RESPONSE)Marshal.PtrToStructure((System.IntPtr)responsePointer, typeof(Interop.KERB_RETRIEVE_TKT_RESPONSE));
 
-                string serviceName = "";
-                if (response.Ticket.ServiceName != IntPtr.Zero) {
-                    Interop.KERB_EXTERNAL_NAME serviceNameStruct = (Interop.KERB_EXTERNAL_NAME)Marshal.PtrToStructure(response.Ticket.ServiceName, typeof(Interop.KERB_EXTERNAL_NAME));
-                    if (serviceNameStruct.NameCount == 1) {
-                        serviceName = Marshal.PtrToStringUni(serviceNameStruct.Names[0].Buffer, serviceNameStruct.Names[0].Length / 2).Trim();
-                    }
-                    else if (serviceNameStruct.NameCount == 2) {
-                        serviceName = string.Format("{0}/{1}",
-                            Marshal.PtrToStringUni(serviceNameStruct.Names[0].Buffer, serviceNameStruct.Names[0].Length / 2).Trim(),
-                            Marshal.PtrToStringUni(serviceNameStruct.Names[1].Buffer, serviceNameStruct.Names[1].Length / 2).Trim());
-                    }
-                }
-                        
+                string serviceName = response.Ticket.GetServiceName();
                 string targetName = "";
                 if (response.Ticket.TargetName != IntPtr.Zero) {
                     Interop.KERB_EXTERNAL_NAME targetNameStruct = (Interop.KERB_EXTERNAL_NAME)Marshal.PtrToStructure(response.Ticket.TargetName, typeof(Interop.KERB_EXTERNAL_NAME));
@@ -905,19 +893,7 @@ namespace Rubeus
                                                 // parse the returned pointer into our initial KERB_RETRIEVE_TKT_RESPONSE structure
                                                 response = (Interop.KERB_RETRIEVE_TKT_RESPONSE)Marshal.PtrToStructure((System.IntPtr)responsePointer, typeof(Interop.KERB_RETRIEVE_TKT_RESPONSE));
 
-                                                string serviceName = "";
-                                                if (response.Ticket.ServiceName != IntPtr.Zero) {
-                                                    Interop.KERB_EXTERNAL_NAME serviceNameStruct = (Interop.KERB_EXTERNAL_NAME)Marshal.PtrToStructure(response.Ticket.ServiceName, typeof(Interop.KERB_EXTERNAL_NAME));
-                                                    if (serviceNameStruct.NameCount == 1) {
-                                                        serviceName = Marshal.PtrToStringUni(serviceNameStruct.Names[0].Buffer, serviceNameStruct.Names[0].Length / 2).Trim();
-                                                    }
-                                                    else if (serviceNameStruct.NameCount == 2) {
-                                                        serviceName = String.Format("{0}/{1}",
-                                                            Marshal.PtrToStringUni(serviceNameStruct.Names[0].Buffer, serviceNameStruct.Names[0].Length / 2).Trim(),
-                                                            Marshal.PtrToStringUni(serviceNameStruct.Names[1].Buffer, serviceNameStruct.Names[1].Length / 2).Trim());
-                                                    }
-                                                }
-
+                                                string serviceName = response.Ticket.GetServiceName();
                                                 string targetName = "";
                                                 if (response.Ticket.TargetName != IntPtr.Zero) {
                                                     Interop.KERB_EXTERNAL_NAME targetNameStruct = (Interop.KERB_EXTERNAL_NAME)Marshal.PtrToStructure(response.Ticket.TargetName, typeof(Interop.KERB_EXTERNAL_NAME));
