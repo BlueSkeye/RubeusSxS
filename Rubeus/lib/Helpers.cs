@@ -6,10 +6,31 @@ using System.Linq;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
 
+using Asn1;
+
 namespace Rubeus
 {
     public class Helpers
     {
+        internal static void DisplayKerberosError(AsnElt from)
+        {
+            long errorCode = new KRB_ERROR(from.FirstElement).ErrorCode;
+            Console.WriteLine("\r\n[X] KRB-ERROR ({0}) : {1}\r\n",
+                errorCode, (Interop.KERBEROS_ERROR)errorCode);
+            return;
+        }
+
+        internal static void DisplayKerberosTicket(byte[] ticket)
+        {
+                string ticketString = Convert.ToBase64String(ticket);
+                Console.WriteLine("[*] base64(ticket.kirbi):\r\n", ticketString);
+
+                // display the .kirbi base64, columns of 80 chararacters
+                foreach (string line in Helpers.Split(ticketString, 80)) {
+                    Console.WriteLine("      {0}", line);
+                }
+        }
+
         public static bool GetSystem()
         {
             // helper to elevate to SYSTEM for Kerberos ticket enumeration via token impersonation

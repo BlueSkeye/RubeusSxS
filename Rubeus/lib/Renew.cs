@@ -119,12 +119,7 @@ namespace Rubeus
                     cred.EncryptedPart.ticket_info.Add(info);
                     byte[] kirbiBytes = cred.Encode().Encode();
                     if (display) {
-                        string kirbiString = Convert.ToBase64String(kirbiBytes);
-                        Console.WriteLine("[*] base64(ticket.kirbi):\r\n", kirbiString);
-                        // display the .kirbi base64, columns of 80 chararacters
-                        foreach (string line in Helpers.Split(kirbiString, 80)) {
-                            Console.WriteLine("      {0}", line);
-                        }
+                        Helpers.DisplayKerberosTicket(kirbiBytes);
                         if (ptt) {
                             // pass-the-ticket -> import into LSASS
                             LSA.ImportTicket(kirbiBytes);
@@ -132,9 +127,7 @@ namespace Rubeus
                     }
                     return kirbiBytes;
                 case 30:
-                    // parse the response to an KRB-ERROR
-                    KRB_ERROR error = new KRB_ERROR(responseAsn.FirstElement);
-                    Console.WriteLine("\r\n[X] KRB-ERROR ({0}) : {1}\r\n", error.ErrorCode, (Interop.KERBEROS_ERROR)error.ErrorCode);
+                    Helpers.DisplayKerberosError(responseAsn);
                     return null;
                 default:
                     Console.WriteLine("\r\n[X] Unknown application tag: {0}", responseTag);

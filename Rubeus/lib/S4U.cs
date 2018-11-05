@@ -5,14 +5,6 @@ namespace Rubeus
 {
     public class S4U
     {
-        private static void DisplayKerberosError(AsnElt from)
-        {
-            long errorCode = new KRB_ERROR(from.FirstElement).ErrorCode;
-            Console.WriteLine("\r\n[X] KRB-ERROR ({0}) : {1}\r\n",
-                errorCode, (Interop.KERBEROS_ERROR)errorCode);
-            return;
-        }
-
         public static void Execute(string userName, string domain, string keyString, Interop.KERB_ETYPE etype, string targetUser, string targetSPN, bool ptt, string domainController = "", string altService = "")
         {
             // first retrieve a TGT for the user
@@ -160,12 +152,7 @@ namespace Rubeus
                                     // add the ticket_info into the cred object
                                     cred.EncryptedPart.ticket_info.Add(info);
                                     kirbiBytes = cred.Encode().Encode();
-                                    kirbiString = Convert.ToBase64String(kirbiBytes);
-                                    Console.WriteLine("[*] base64(ticket.kirbi) for SPN '{0}/{1}':\r\n", altSname, serverName);
-                                    // display the .kirbi base64, columns of 80 chararacters
-                                    foreach (string line in Helpers.Split(kirbiString, 80)) {
-                                        Console.WriteLine("      {0}", line);
-                                    }
+                                    Helpers.DisplayKerberosTicket(kirbiBytes);
                                     if (ptt) {
                                         // pass-the-ticket -> import into LSASS
                                         LSA.ImportTicket(kirbiBytes);
@@ -208,12 +195,7 @@ namespace Rubeus
                             // add the ticket_info into the cred object
                             cred.EncryptedPart.ticket_info.Add(info);
                             kirbiBytes = cred.Encode().Encode();
-                            kirbiString = Convert.ToBase64String(kirbiBytes);
-                            Console.WriteLine("[*] base64(ticket.kirbi) for SPN '{0}':\r\n", targetSPN);
-                            // display the .kirbi base64, columns of 80 chararacters
-                            foreach (string line in Helpers.Split(kirbiString, 80)) {
-                                Console.WriteLine("      {0}", line);
-                            }
+                            Helpers.DisplayKerberosTicket(kirbiBytes);
                             if (ptt) {
                                 // pass-the-ticket -> import into LSASS
                                 LSA.ImportTicket(kirbiBytes);
@@ -221,7 +203,7 @@ namespace Rubeus
                             return;
                         case 30:
                             // parse the response to an KRB-ERROR
-                            DisplayKerberosError(responseAsn);
+                            Helpers.DisplayKerberosError(responseAsn);
                             return;
                         default:
                             Console.WriteLine("\r\n[X] Unknown application tag: {0}", responseTag);
@@ -229,7 +211,7 @@ namespace Rubeus
                     }
                 case 30:
                     // parse the response to an KRB-ERROR
-                    DisplayKerberosError(responseAsn);
+                    Helpers.DisplayKerberosError(responseAsn);
                     return;
                 default:
                     Console.WriteLine("\r\n[X] Unknown application tag: {0}", responseTag);

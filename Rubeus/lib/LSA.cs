@@ -1381,13 +1381,7 @@ namespace Rubeus
                                         }
 
                                         byte[] kirbiBytes = cred.Encode().Encode();
-                                        string kirbiString = Convert.ToBase64String(kirbiBytes);
-
-                                        Console.WriteLine("[*] base64(ticket.kirbi):\r\n", kirbiString);
-                                        // display the .kirbi base64, columns of 80 chararacters
-                                        foreach (string line in Helpers.Split(kirbiString, 80)) {
-                                            Console.WriteLine("      {0}", line);
-                                        }
+                                        Helpers.DisplayKerberosTicket(kirbiBytes);
                                         return kirbiBytes;
                                     }
                                 }

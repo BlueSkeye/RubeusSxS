@@ -56,9 +56,7 @@ namespace Rubeus
                     }
                     return;
                 case 30:
-                    // parse the response to an KRB-ERROR
-                    long errorCode = new KRB_ERROR(responseAsn.FirstElement).ErrorCode;
-                    Console.WriteLine("\r\n[X] KRB-ERROR ({0}) : {1}\r\n", errorCode, (Interop.KERBEROS_ERROR)errorCode);
+                    Helpers.DisplayKerberosError(responseAsn);
                     return;
                 default:
                     Console.WriteLine("\r\n[X] Unknown application tag: {0}", responseTag);

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net.NetworkInformation;
 
 namespace Rubeus.Commands
 {
@@ -10,83 +11,80 @@ namespace Rubeus.Commands
         public void Execute(Dictionary<string, string> arguments)
         {
             string user = "";
-            string domain = "";
-            string hash = "";
-            string dc = "";
-            bool ptt = false;
             uint luid = 0;
-            Interop.KERB_ETYPE encType = Interop.KERB_ETYPE.subkey_keymaterial;
 
-            if (arguments.ContainsKey("/user")) {
-                string[] parts = arguments["/user"].Split('\\');
-                if (parts.Length == 2) {
-                    domain = parts[0];
-                    user = parts[1];
+            string domain;
+            string userValue;
+            if (arguments.TryGetValue("/user", out userValue)) {
+                string[] parts = userValue.Split('\\');
+                switch (parts.Length) {
+                    case 1:
+                        user = userValue;
+                        break;
+                    case 2:
+                        domain = parts[0];
+                        user = parts[1];
+                        break;
+                    default:
+                        Console.WriteLine("\r\n[X] Invalid user value syntax.\r\n");
+                        return;
                 }
-                else {
-                    user = arguments["/user"];
-                }
             }
-            if (arguments.ContainsKey("/domain")) {
-                domain = arguments["/domain"];
+            // TODO : Clarify in source code for overlap with composite user name.
+            if (!arguments.TryGetValue("/domain", out domain)) {
+                domain = string.Empty;
             }
-            if (arguments.ContainsKey("/dc")) {
-                dc = arguments["/dc"];
+            string dc;
+            if (!arguments.TryGetValue("/dc", out dc)) {
+                dc = string.Empty;
             }
-            if (arguments.ContainsKey("/rc4")) {
-                hash = arguments["/rc4"];
+            Interop.KERB_ETYPE encType = Interop.KERB_ETYPE.subkey_keymaterial;
+            string hash;
+            if (arguments.TryGetValue("/rc4", out hash)) {
                 encType = Interop.KERB_ETYPE.rc4_hmac;
             }
-            if (arguments.ContainsKey("/aes256")) {
-                hash = arguments["/aes256"];
+            else if (arguments.TryGetValue("/aes256", out hash)) {
                 encType = Interop.KERB_ETYPE.aes256_cts_hmac_sha1;
             }
-            if (arguments.ContainsKey("/ptt")) {
-                ptt = true;
+            if (string.IsNullOrEmpty(hash)) {
+                Console.WriteLine("\r\n[X] You must supply a /rc4 or /aes256 hash!\r\n");
+                return;
             }
 
-            if (arguments.ContainsKey("/luid")) {
+            bool ptt = arguments.ContainsKey("/ptt");
+            string luidValue;
+            if (arguments.TryGetValue("/luid", out luidValue)) {
                 try {
-                    luid = UInt32.Parse(arguments["/luid"]);
+                    luid = uint.Parse(luidValue);
                 }
                 catch {
                     try {
-                        luid = Convert.ToUInt32(arguments["/luid"], 16);
+                        luid = Convert.ToUInt32(luidValue, 16);
                     }
                     catch {
-                        Console.WriteLine("[X] Invalid LUID format ({0})\r\n", arguments["/LUID"]);
+                        Console.WriteLine("[X] Invalid LUID format ({0})\r\n", luidValue);
                         return;
                     }
                 }
             }
 
-            if (arguments.ContainsKey("/createnetonly")) {
+            string createnetonlyValue;
+            if (arguments.TryGetValue("/createnetonly", out createnetonlyValue)) {
                 // if we're starting a hidden process to apply the ticket to
                 if (!Helpers.IsHighIntegrity()) {
                     Console.WriteLine("[X] You need to be in high integrity to apply a ticket to created logon session");
                     return;
                 }
-                if (arguments.ContainsKey("/show")) {
-                    luid = LSA.CreateProcessNetOnly(arguments["/createnetonly"], true);
-                }
-                else {
-                    luid = LSA.CreateProcessNetOnly(arguments["/createnetonly"], false);
-                }
+                luid = LSA.CreateProcessNetOnly(createnetonlyValue, arguments.ContainsKey("/show"));
                 Console.WriteLine();
             }
-
-            if (String.IsNullOrEmpty(user)) {
+            if (string.IsNullOrEmpty(user)) {
                 Console.WriteLine("\r\n[X] You must supply a user name!\r\n");
                 return;
             }
-            if (String.IsNullOrEmpty(domain)) {
-                domain = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties().DomainName;
+            if (string.IsNullOrEmpty(domain)) {
+                domain = IPGlobalProperties.GetIPGlobalProperties().DomainName;
             }
-            if (String.IsNullOrEmpty(hash)) {
-                Console.WriteLine("\r\n[X] You must supply a /rc4 or /aes256 hash!\r\n");
-                return;
-            }
-
             if (!((encType == Interop.KERB_ETYPE.rc4_hmac) || (encType == Interop.KERB_ETYPE.aes256_cts_hmac_sha1))) {
                 Console.WriteLine("\r\n[X] Only /rc4 and /aes256 are supported at this time.\r\n");
                 return;
