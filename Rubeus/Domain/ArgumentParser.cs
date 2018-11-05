@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 
 namespace Rubeus.Domain
@@ -9,7 +10,7 @@ namespace Rubeus.Domain
         {
             Dictionary<string, string> arguments = new Dictionary<string, string>();
             try {
-                foreach (var argument in args) {
+                foreach (string argument in args) {
                     int idx = argument.IndexOf(':');
                     if (0 < idx) {
                         arguments[argument.Substring(0, idx)] = argument.Substring(idx + 1);
@@ -20,7 +21,7 @@ namespace Rubeus.Domain
                 }
                 return ArgumentParserResult.Success(arguments);
             }
-            catch (System.Exception ex) {
+            catch (Exception ex) {
                 Debug.WriteLine(ex.Message);
                 return ArgumentParserResult.Failure();
             }

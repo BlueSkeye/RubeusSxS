@@ -7,10 +7,11 @@ using System.Security.Principal;
 using System.Text.RegularExpressions;
 
 using Asn1;
+using Rubeus.lib;
 
 namespace Rubeus
 {
-    public class Helpers
+    internal static class Helpers
     {
         internal static void DisplayKerberosError(AsnElt from)
         {
@@ -29,6 +30,15 @@ namespace Rubeus
                 foreach (string line in Helpers.Split(ticketString, 80)) {
                     Console.WriteLine("      {0}", line);
                 }
+        }
+
+        internal static string GetArgument(this Dictionary<string, string> arguments, string argumentName,
+            string defaultValue = null)
+        {
+            string result;
+            return arguments.TryGetValue(argumentName, out result)
+                ? result
+                : defaultValue;
         }
 
         public static bool GetSystem()
@@ -84,12 +94,13 @@ namespace Rubeus
             return (s.Length % 4 == 0) && Regex.IsMatch(s, @"^[a-zA-Z0-9\+/]*={0,3}$", RegexOptions.None);
         }
 
-        public static bool IsHighIntegrity()
+        /// <summary>returns true if the current process is running with adminstrative privs
+        /// in a high integrity context</summary>
+        /// <returns></returns>
+        internal static bool IsHighIntegrity()
         {
-            // returns true if the current process is running with adminstrative privs in a high integrity context
-            WindowsIdentity identity = WindowsIdentity.GetCurrent();
-            WindowsPrincipal principal = new WindowsPrincipal(identity);
-            return principal.IsInRole(WindowsBuiltInRole.Administrator);
+            return new WindowsPrincipal(WindowsIdentity.GetCurrent())
+                .IsInRole(WindowsBuiltInRole.Administrator);
         }
 
         /// <summary>Parse a short integer from the buffer starting at index. The integer is expected to be stored in
@@ -182,6 +193,10 @@ namespace Rubeus
                 .Where(x => x % 2 == 0)
                 .Select(x => Convert.ToByte(hex.Substring(x, 2), 16))
                 .ToArray();
+        }
+
+        internal static void ValidateNativeCall(NativeReturnCode code)
+        {
         }
 
         private static Random random = new Random();

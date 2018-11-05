@@ -12,12 +12,9 @@ namespace Rubeus.Commands
             string luidString;
 
             if (arguments.TryGetValue("/luid",out luidString)) {
-                string service = string.Empty;
-                if (arguments.ContainsKey("/service")) {
-                    service = arguments["/service"];
-                }
-                UInt32 luid = 0;
-                if (!UInt32.TryParse(luidString, out luid)) {
+                string service = arguments.GetArgument("/service", string.Empty);
+                uint luid = 0;
+                if (!uint.TryParse(luidString, out luid)) {
                     try {
                         luid = Convert.ToUInt32(luidString, 16);
                     }

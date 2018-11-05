@@ -509,10 +509,10 @@ namespace Rubeus
 
         // LSA structures
         [StructLayout(LayoutKind.Sequential)]
-        public struct KERB_SUBMIT_TKT_REQUEST
+        internal struct KERB_SUBMIT_TKT_REQUEST
         {
             public KERB_PROTOCOL_MESSAGE_TYPE MessageType;
-            public LUID LogonId;
+            internal LUID LogonId;
             public int Flags;
             public KERB_CRYPTO_KEY32 Key; // key to decrypt KERB_CRED
             public int KerbCredSize;
@@ -520,10 +520,10 @@ namespace Rubeus
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct KERB_PURGE_TKT_CACHE_REQUEST
+        internal struct KERB_PURGE_TKT_CACHE_REQUEST
         {
             public KERB_PROTOCOL_MESSAGE_TYPE MessageType;
-            public LUID LogonId;
+            internal LUID LogonId;
             LSA_STRING_IN ServerName;
             LSA_STRING_IN RealmName;
         }
@@ -537,10 +537,18 @@ namespace Rubeus
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct LUID
+        internal struct LUID
         {
-            public uint LowPart;
-            public int HighPart;
+            internal LUID(uint lowPart, int highPart = 0)
+            {
+                LowPart = lowPart;
+                HighPart = highPart;
+            }
+
+            internal uint LowPart;
+            internal int HighPart;
+
+            internal static readonly LUID Empty = new LUID();
         }
 
         //[StructLayout(LayoutKind.Sequential)]
@@ -660,22 +668,41 @@ namespace Rubeus
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct KERB_RETRIEVE_TKT_REQUEST
+        internal struct KERB_RETRIEVE_TKT_REQUEST
         {
+            internal KERB_RETRIEVE_TKT_REQUEST(LUID logonId,
+                KERB_PROTOCOL_MESSAGE_TYPE messageType = KERB_PROTOCOL_MESSAGE_TYPE.KerbDebugRequestMessage)
+            {
+                MessageType = messageType;
+                LogonId = logonId;
+                TargetName = new UNICODE_STRING();
+                TicketFlags = 0;
+                CacheOptions = 0;
+                EncryptionType = 0;
+                CredentialsHandle = new SECURITY_HANDLE();
+            }
+
             public KERB_PROTOCOL_MESSAGE_TYPE MessageType;
-            public LUID LogonId;
+            internal LUID LogonId;
             public UNICODE_STRING TargetName;
-            public UInt32 TicketFlags;
-            public UInt32 CacheOptions;
-            public Int32 EncryptionType;
+            public uint TicketFlags;
+            public uint CacheOptions;
+            public int EncryptionType;
             public SECURITY_HANDLE CredentialsHandle;
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct KERB_QUERY_TKT_CACHE_REQUEST
+        internal struct KERB_QUERY_TKT_CACHE_REQUEST
         {
-            public KERB_PROTOCOL_MESSAGE_TYPE MessageType;
-            public LUID LogonId;
+            internal KERB_QUERY_TKT_CACHE_REQUEST(LUID logonId,
+                KERB_PROTOCOL_MESSAGE_TYPE messageType = KERB_PROTOCOL_MESSAGE_TYPE.KerbDebugRequestMessage)
+            {
+                LogonId = logonId;
+                MessageType = messageType;
+            }
+
+            internal KERB_PROTOCOL_MESSAGE_TYPE MessageType;
+            internal LUID LogonId;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -710,10 +737,10 @@ namespace Rubeus
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct SECURITY_LOGON_SESSION_DATA
+        internal struct SECURITY_LOGON_SESSION_DATA
         {
             public UInt32 Size;
-            public LUID LoginID;
+            internal LUID LoginID;
             public LSA_STRING_OUT Username;
             public LSA_STRING_OUT LoginDomain;
             public LSA_STRING_OUT AuthenticationPackage;
@@ -767,10 +794,10 @@ namespace Rubeus
         }
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        public struct TOKEN_STATISTICS
+        internal struct TOKEN_STATISTICS
         {
-            public LUID TokenId;
-            public LUID AuthenticationId;
+            internal LUID TokenId;
+            internal LUID AuthenticationId;
             public long ExpirationTime;
             public uint TokenType;
             public uint ImpersonationLevel;
@@ -1008,6 +1035,7 @@ namespace Rubeus
         {
             public IntPtr LowPart;
             public IntPtr HighPart;
+
             public SECURITY_HANDLE(int dummy)
             {
                 LowPart = HighPart = IntPtr.Zero;
@@ -1076,14 +1104,14 @@ namespace Rubeus
         /// Applications with the SeTcbPrivilege privilege may create a trusted connection by
         /// calling LsaRegisterLogonProcess.</remarks>
         [DllImport("secur32.dll", SetLastError = false)]
-        public static extern int LsaConnectUntrusted(
+        internal static extern NativeReturnCode LsaConnectUntrusted(
             [Out] out IntPtr LsaHandle
         );
 
         [DllImport("secur32.dll", SetLastError = false)]
-        public static extern int LsaLookupAuthenticationPackage(
+        internal static extern NativeReturnCode LsaLookupAuthenticationPackage(
             [In] IntPtr LsaHandle,
-            [In] ref LSA_STRING_IN PackageName,
+            [In] LSA_STRING_IN PackageName,
             [Out] out int AuthenticationPackage
         );
 
@@ -1111,7 +1139,7 @@ namespace Rubeus
         );
 
         [DllImport("secur32.dll", SetLastError = false)]
-        public static extern int LsaCallAuthenticationPackage(
+        internal static extern NativeReturnCode LsaCallAuthenticationPackage(
             IntPtr LsaHandle,
             int AuthenticationPackage,
             IntPtr ProtocolSubmitBuffer,

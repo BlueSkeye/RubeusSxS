@@ -5,7 +5,9 @@ namespace Rubeus
 {
     public class S4U
     {
-        public static void Execute(string userName, string domain, string keyString, Interop.KERB_ETYPE etype, string targetUser, string targetSPN, bool ptt, string domainController = "", string altService = "")
+        public static void Execute(string userName, string domain, string keyString,
+            Interop.KERB_ETYPE etype, string targetUser, string targetSPN, bool ptt,
+            string domainController = "", string altService = "")
         {
             // first retrieve a TGT for the user
             byte[] kirbiBytes = Ask.TGT(userName, domain, keyString, etype, false, domainController);
@@ -112,7 +114,6 @@ namespace Rubeus
                             KRB_CRED cred;
                             KrbCredInfo info;
                             byte[] kirbiBytes;
-                            string kirbiString;
                             if (!string.IsNullOrEmpty(altService)) {
                                 string[] altSnames = altService.Split(',');
                                 foreach (string altSname in altSnames) {

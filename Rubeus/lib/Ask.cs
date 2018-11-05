@@ -5,7 +5,8 @@ namespace Rubeus
 {
     public class Ask
     {
-        public static byte[] TGT(string userName, string domain, string keyString, Interop.KERB_ETYPE etype, bool ptt, string domainController = "", uint luid = 0)
+        public static byte[] TGT(string userName, string domain, string keyString,
+            Interop.KERB_ETYPE etype, bool ptt, string domainController = "", uint luid = 0)
         {
             Console.WriteLine("[*] Action: Ask TGT\r\n");
             Console.WriteLine("[*] Using {0} hash: {1}", etype, keyString);
