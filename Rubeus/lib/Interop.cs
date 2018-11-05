@@ -663,21 +663,31 @@ namespace Rubeus
             public int EncodedTicketSize;
             public IntPtr EncodedTicket;
 
+            public string GetClientName()
+            {
+                if (IntPtr.Zero == this.ClientName) {
+                    return string.Empty;
+                }
+                KERB_EXTERNAL_NAME clientNameStruct = (KERB_EXTERNAL_NAME)Marshal.PtrToStructure(this.ClientName, typeof(KERB_EXTERNAL_NAME));
+                return clientNameStruct.GetFormattedName();
+            }
+
             public string GetServiceName()
             {
                 if (IntPtr.Zero == this.ServiceName) {
                     return string.Empty;
                 }
                 KERB_EXTERNAL_NAME serviceNameStruct = (KERB_EXTERNAL_NAME)Marshal.PtrToStructure(this.ServiceName, typeof(KERB_EXTERNAL_NAME));
-                LSA_STRING_OUT[] names = serviceNameStruct.Names;
-                switch(serviceNameStruct.NameCount) {
-                    case 1:
-                        return names[0].GetValue();
-                    case 2:
-                        return string.Format("{0}/{1}", names[0].GetValue(), names[1].GetValue());
-                    default:
-                        return string.Empty;
+                return serviceNameStruct.GetFormattedName();
+            }
+
+            internal string GetTargetName()
+            {
+                if (IntPtr.Zero == this.TargetName) {
+                    return string.Empty;
                 }
+                KERB_EXTERNAL_NAME targetNameStruct = (KERB_EXTERNAL_NAME)Marshal.PtrToStructure(this.TargetName, typeof(KERB_EXTERNAL_NAME));
+                return targetNameStruct.GetFormattedName();
             }
         }
 
@@ -751,11 +761,24 @@ namespace Rubeus
         [StructLayout(LayoutKind.Sequential)]
         public struct KERB_EXTERNAL_NAME
         {
-            public Int16 NameType;
-            public UInt16 NameCount;
+            public short NameType;
+            public ushort NameCount;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)]
             public LSA_STRING_OUT[] Names;
             //public LSA_STRING_OUT[] Names;
+
+            internal string GetFormattedName()
+            {
+                LSA_STRING_OUT[] names = this.Names;
+                switch(this.NameCount) {
+                    case 1:
+                        return names[0].GetValue();
+                    case 2:
+                        return string.Format("{0}/{1}", names[0].GetValue(), names[1].GetValue());
+                    default:
+                        return string.Empty;
+                }
+            }
         }
 
         [StructLayout(LayoutKind.Sequential)]
