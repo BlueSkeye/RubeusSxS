@@ -24,7 +24,7 @@ namespace Rubeus
                 AsnElt firstElement = s.FirstElement;
                 switch (s.TagValue) {
                     case 0:
-                        keytype = Convert.ToInt32(firstElement.GetInteger());
+                        keytype = (Rubeus.Interop.KERB_ETYPE)Convert.ToInt32(firstElement.GetInteger());
                         break;
                     case 1:
                         keyvalue = firstElement.GetOctetString();
@@ -41,7 +41,7 @@ namespace Rubeus
         public AsnElt Encode()
         {
             // keytype[0] Int32 -- actually encryption type --
-            AsnElt keyTypeElt = AsnElt.MakeInteger(keytype);
+            AsnElt keyTypeElt = AsnElt.MakeInteger((long)keytype);
             AsnElt keyTypeSeq = AsnElt.MakeSequence(new AsnElt[] { keyTypeElt });
             keyTypeSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 0, keyTypeSeq);
 
@@ -55,7 +55,7 @@ namespace Rubeus
             return AsnElt.MakeSequence(new[] { seq });
         }
 
-        public Int32 keytype { get; set; }
+        internal Rubeus.Interop.KERB_ETYPE keytype { get; set; }
 
         public byte[] keyvalue { get; set; }
     }

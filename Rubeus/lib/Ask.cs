@@ -112,24 +112,27 @@ namespace Rubeus
             return null;
         }
 
-        public static void TGS(KRB_CRED kirbi, string service, bool ptt = false, string domainController = "", bool display = true)
+        public static void TGS(KRB_CRED kirbi, string service, bool ptt = false, string domainController = "",
+            bool display = true)
         {
             // extract out the info needed for the TGS-REQ request
-            string userName = kirbi.EncryptedPart.ticket_info[0].pname.name_string[0];
-            string domain = kirbi.EncryptedPart.ticket_info[0].prealm;
+            KrbCredInfo credentials = kirbi.EncryptedPart.ticket_info[0];
+            string userName = credentials.pname.name_string[0];
+            string domain = credentials.prealm;
             Ticket ticket = kirbi.Tickets[0];
-            byte[] clientKey = kirbi.EncryptedPart.ticket_info[0].key.keyvalue;
-            Interop.KERB_ETYPE etype = (Interop.KERB_ETYPE)kirbi.EncryptedPart.ticket_info[0].key.keytype;
+            byte[] clientKey = credentials.key.keyvalue;
+            Interop.KERB_ETYPE etype = (Interop.KERB_ETYPE)credentials.key.keytype;
 
             string[] services = service.Split(',');
             foreach (string sname in services) {
                 // request the new service tickt
-                TGS(userName, domain, ticket, clientKey, etype, sname, ptt, domainController, display);
+                TGS(userName, domain, ticket, credentials.key, sname, ptt, domainController, display);
                 Console.WriteLine();
             }
         }
 
-        public static byte[] TGS(string userName, string domain, Ticket providedTicket, byte[] clientKey, Interop.KERB_ETYPE etype, string service, bool ptt, string domainController = "", bool display = true)
+        public static byte[] TGS(string userName, string domain, Ticket providedTicket, EncryptionKey key,
+            string service, bool ptt, string domainController = "", bool display = true)
         {
             if (display) {
                 Console.WriteLine("[*] Action: Ask TGS\r\n");
@@ -141,7 +144,7 @@ namespace Rubeus
             if (display) {
                 Console.WriteLine("[*] Building TGS-REQ request for: '{0}'", service);
             }
-            byte[] tgsBytes = TGS_REQ.NewTGSReq(userName, domain, service, providedTicket, clientKey, etype, false);
+            byte[] tgsBytes = TGS_REQ.NewTGSReq(userName, domain, service, providedTicket, key.keyvalue, key.keytype, false);
             byte[] response = Networking.SendBytes(dcIP, 88, tgsBytes);
             if (response == null) {
                 return null;
@@ -157,7 +160,8 @@ namespace Rubeus
                 // parse the response to an TGS-REP
                 TGS_REP rep = new TGS_REP(responseAsn);
                 // KRB_KEY_USAGE_TGS_REP_EP_SESSION_KEY = 8
-                byte[] outBytes = Crypto.KerberosDecrypt(etype, Interop.KRB_KEY_USAGE_TGS_REP_EP_SESSION_KEY, clientKey, rep.enc_part.cipher);
+                byte[] outBytes = Crypto.KerberosDecrypt(key.keytype, Interop.KRB_KEY_USAGE_TGS_REP_EP_SESSION_KEY,
+                    key.keyvalue, rep.enc_part.cipher);
                 AsnElt ae = AsnElt.Decode(outBytes, false);
                 EncKDCRepPart encRepPart = new EncKDCRepPart(ae.FirstElement);
                 // now build the final KRB-CRED structure
