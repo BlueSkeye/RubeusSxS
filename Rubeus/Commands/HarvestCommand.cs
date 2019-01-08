@@ -11,7 +11,7 @@ namespace Rubeus.Commands
         {
             int intervalMinutes = 60;
             if (arguments.ContainsKey("/interval")) {
-                intervalMinutes = Int32.Parse(arguments["/interval"]);
+                intervalMinutes = int.Parse(arguments["/interval"]);
             }
             Harvest.HarvestTGTs(intervalMinutes);
         }

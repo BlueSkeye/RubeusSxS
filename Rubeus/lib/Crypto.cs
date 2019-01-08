@@ -9,19 +9,19 @@ namespace Rubeus
         // Adapted from Vincent LE TOUX' "MakeMeEnterpriseAdmin"
         public static byte[] KerberosChecksum(byte[] key, byte[] data)
         {
-            Interop.KERB_CHECKSUM pCheckSum;
             IntPtr pCheckSumPtr;
             int status = Interop.CDLocateCheckSum(Interop.KERB_CHECKSUM_ALGORITHM.KERB_CHECKSUM_HMAC_MD5, out pCheckSumPtr);
-            pCheckSum = (Interop.KERB_CHECKSUM)Marshal.PtrToStructure(pCheckSumPtr, typeof(Interop.KERB_CHECKSUM));
-            if (status != 0) {
+            Interop.KERB_CHECKSUM pCheckSum = (Interop.KERB_CHECKSUM)Marshal.PtrToStructure(pCheckSumPtr,
+                typeof(Interop.KERB_CHECKSUM));
+            if (0 != status) {
                 throw new Win32Exception(status, "CDLocateCheckSum failed");
             }
 
             IntPtr Context;
-            Interop.KERB_CHECKSUM_InitializeEx pCheckSumInitializeEx = (Interop.KERB_CHECKSUM_InitializeEx)Marshal.GetDelegateForFunctionPointer(pCheckSum.InitializeEx, typeof(Interop.KERB_CHECKSUM_InitializeEx));
-            Interop.KERB_CHECKSUM_Sum pCheckSumSum = (Interop.KERB_CHECKSUM_Sum)Marshal.GetDelegateForFunctionPointer(pCheckSum.Sum, typeof(Interop.KERB_CHECKSUM_Sum));
-            Interop.KERB_CHECKSUM_Finalize pCheckSumFinalize = (Interop.KERB_CHECKSUM_Finalize)Marshal.GetDelegateForFunctionPointer(pCheckSum.Finalize, typeof(Interop.KERB_CHECKSUM_Finalize));
-            Interop.KERB_CHECKSUM_Finish pCheckSumFinish = (Interop.KERB_CHECKSUM_Finish)Marshal.GetDelegateForFunctionPointer(pCheckSum.Finish, typeof(Interop.KERB_CHECKSUM_Finish));
+            Interop.KERB_CHECKSUM.InitializeExDelegate pCheckSumInitializeEx = (Interop.KERB_CHECKSUM.InitializeExDelegate)Marshal.GetDelegateForFunctionPointer(pCheckSum.InitializeEx, typeof(Interop.KERB_CHECKSUM.InitializeExDelegate));
+            Interop.KERB_CHECKSUM.SumDelegate pCheckSumSum = (Interop.KERB_CHECKSUM.SumDelegate)Marshal.GetDelegateForFunctionPointer(pCheckSum.Sum, typeof(Interop.KERB_CHECKSUM.SumDelegate));
+            Interop.KERB_CHECKSUM.FinalizeDelegate pCheckSumFinalize = (Interop.KERB_CHECKSUM.FinalizeDelegate)Marshal.GetDelegateForFunctionPointer(pCheckSum.Finalize, typeof(Interop.KERB_CHECKSUM.FinalizeDelegate));
+            Interop.KERB_CHECKSUM.FinishDelegate pCheckSumFinish = (Interop.KERB_CHECKSUM.FinishDelegate)Marshal.GetDelegateForFunctionPointer(pCheckSum.Finish, typeof(Interop.KERB_CHECKSUM.FinishDelegate));
 
             // initialize the checksum
             // KERB_NON_KERB_CKSUM_SALT = 17
@@ -30,13 +30,13 @@ namespace Rubeus
                 throw new Win32Exception(status2);
             }
             // the output buffer for the checksum data
-            byte[] checksumSrv = new byte[pCheckSum.Size];
+            byte[] result = new byte[pCheckSum.Size];
             // actually checksum all the supplied data
             pCheckSumSum(Context, data.Length, data);
             // finish everything up
-            pCheckSumFinalize(Context, checksumSrv);
+            pCheckSumFinalize(Context, result);
             pCheckSumFinish(ref Context);
-            return checksumSrv;
+            return result;
         }
 
         // Adapted from Vincent LE TOUX' "MakeMeEnterpriseAdmin"
@@ -106,11 +106,11 @@ namespace Rubeus
             }
             string algName = Marshal.PtrToStringAuto(pCSystem.AlgName);
             outputSize += pCSystem.Size;
-            byte[] output = new byte[outputSize];
+            byte[] result = new byte[outputSize];
             // actually perform the decryption
-            status = pCSystemEncrypt(pContext, data, data.Length, output, ref outputSize);
+            status = pCSystemEncrypt(pContext, data, data.Length, result, ref outputSize);
             pCSystemFinish(ref pContext);
-            return output;
+            return result;
         }
     }
 }

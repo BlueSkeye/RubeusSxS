@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 using Rubeus.lib;
@@ -116,7 +117,7 @@ namespace Rubeus
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct KERB_CHECKSUM
+        internal struct KERB_CHECKSUM
         {
             public int Type;
             public int Size;
@@ -127,6 +128,13 @@ namespace Rubeus
             public IntPtr Finish;
             public IntPtr InitializeEx;
             public IntPtr unk0_null;
+
+            // https://github.com/vletoux/MakeMeEnterpriseAdmin/blob/master/MakeMeEnterpriseAdmin.ps1#L1760-L1767
+            internal delegate int FinalizeDelegate(IntPtr pContext, byte[] Buffer);
+            internal delegate int FinishDelegate(ref IntPtr pContext);
+            internal delegate int InitializeDelegate(int unk0, out IntPtr pContext);
+            internal delegate int InitializeExDelegate(byte[] Key, int KeySize, int KeyUsage, out IntPtr pContext);
+            internal delegate int SumDelegate(IntPtr pContext, int Size, byte[] Buffer);
         }
 
         // from https://github.com/ps4dev/freebsd-include-mirror/blob/master/krb5_asn1.h
@@ -511,12 +519,31 @@ namespace Rubeus
         [StructLayout(LayoutKind.Sequential)]
         internal struct KERB_SUBMIT_TKT_REQUEST
         {
+            internal KERB_SUBMIT_TKT_REQUEST(KERB_PROTOCOL_MESSAGE_TYPE messageType,
+                int credentialSize)
+            {
+                MessageType = messageType;
+                LogonId = LUID.Empty;
+                Flags = 0;
+                Key = new KERB_CRYPTO_KEY32();
+                KerbCredSize = credentialSize;
+                KerbCredOffset = Marshal.SizeOf(typeof(KERB_SUBMIT_TKT_REQUEST));
+            }
+
             public KERB_PROTOCOL_MESSAGE_TYPE MessageType;
             internal LUID LogonId;
             public int Flags;
-            public KERB_CRYPTO_KEY32 Key; // key to decrypt KERB_CRED
+            internal KERB_CRYPTO_KEY32 Key; // key to decrypt KERB_CRED
             public int KerbCredSize;
             public int KerbCredOffset;
+
+            [StructLayout(LayoutKind.Sequential)]
+            internal struct KERB_CRYPTO_KEY32
+            {
+                public int KeyType;
+                public int Length;
+                public int Offset;
+            }
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -529,15 +556,7 @@ namespace Rubeus
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct KERB_CRYPTO_KEY32
-        {
-            public int KeyType;
-            public int Length;
-            public int Offset;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        internal struct LUID
+        internal struct LUID : IEquatable<LUID>
         {
             internal LUID(uint lowPart, int highPart = 0)
             {
@@ -545,10 +564,63 @@ namespace Rubeus
                 HighPart = highPart;
             }
 
+            internal LUID(string value, int fromBase = 16)
+            {
+                switch (fromBase) {
+                    case 10:
+                    case 16:
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException("fromBase");
+                }
+                ulong rawValue = Convert.ToUInt64(value, fromBase);
+                this.LowPart = (uint)(rawValue & uint.MaxValue);
+                this.HighPart = (int)(uint)(rawValue >> 32);
+            }
+
+            public bool Equals(LUID other)
+            {
+                return (this.LowPart == other.LowPart) && (this.HighPart == other.HighPart);
+            }
+
+            internal bool IsEmpty
+            {
+                get
+                {
+                    return (0 == LowPart) && (0 == HighPart);
+                }
+            }
+
             internal uint LowPart;
             internal int HighPart;
 
-            internal static readonly LUID Empty = new LUID();
+            internal static readonly LUID Empty = new LUID() { LowPart = 0, HighPart = 0 };
+
+            internal class EqualityComparer : IEqualityComparer<LUID>
+            {
+                static EqualityComparer()
+                {
+                    Singleton = new EqualityComparer();
+                }
+
+                private EqualityComparer()
+                {
+                    // Intentionally left empty.
+                    return;
+                }
+
+                internal static EqualityComparer Singleton { get; private set; }
+
+                public bool Equals(LUID x, LUID y)
+                {
+                    return (x.LowPart == y.LowPart) && (x.HighPart == y.HighPart);
+                }
+
+                public int GetHashCode(LUID obj)
+                {
+                    return ((ulong)((ulong)obj.LowPart | (((ulong)(uint)obj.HighPart) << 32))).GetHashCode();
+                }
+            }
         }
 
         //[StructLayout(LayoutKind.Sequential)]
@@ -575,19 +647,26 @@ namespace Rubeus
         //};
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct LSA_STRING_IN
+        internal struct LSA_STRING_IN
         {
             internal LSA_STRING_IN(string name)
             {
-                Length = (ushort)name.Length;
-                MaximumLength = (ushort)(name.Length + 1);
+                if (null == name) {
+                    throw new ArgumentNullException("name");
+                }
+                int nameLength = name.Length;
+                if ((ushort.MaxValue - 1) <= nameLength) {
+                    throw new ArgumentOutOfRangeException("name.Length");
+                }
+                Length = (ushort)nameLength;
+                MaximumLength = (ushort)(nameLength + 1);
                 Buffer = name;
                 return;
             }
 
-            public ushort Length;
-            public ushort MaximumLength;
-            public string Buffer;
+            internal ushort Length;
+            internal ushort MaximumLength;
+            internal string Buffer;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -603,13 +682,14 @@ namespace Rubeus
             }
         }
 
-        [StructLayout(LayoutKind.Sequential)]
-        public struct LSA_STRING
-        {
-            public ushort Length;
-            public ushort MaximumLength;
-            public string Buffer;
-        }
+        // BS : Unused
+        //[StructLayout(LayoutKind.Sequential)]
+        //public struct LSA_STRING
+        //{
+        //    public ushort Length;
+        //    public ushort MaximumLength;
+        //    public string Buffer;
+        //}
 
         [StructLayout(LayoutKind.Sequential)]
         public struct UNICODE_STRING : IDisposable
@@ -742,7 +822,6 @@ namespace Rubeus
         {
             public KERB_PROTOCOL_MESSAGE_TYPE MessageType;
             public int CountOfTickets;
-            // public KERB_TICKET_CACHE_INFO[] Tickets;
             public IntPtr Tickets;
         }
 
@@ -765,7 +844,6 @@ namespace Rubeus
             public ushort NameCount;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)]
             public LSA_STRING_OUT[] Names;
-            //public LSA_STRING_OUT[] Names;
 
             internal string GetFormattedName()
             {
@@ -920,9 +998,8 @@ namespace Rubeus
         };
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct SecBufferDesc : IDisposable
+        internal struct SecBufferDesc : IDisposable
         {
-
             public int ulVersion;
             public int cBuffers;
             public IntPtr pBuffers; //Point to SecBuffer
@@ -947,19 +1024,14 @@ namespace Rubeus
 
             public SecBufferDesc(MultipleSecBufferHelper[] secBufferBytesArray)
             {
-                if (secBufferBytesArray == null || secBufferBytesArray.Length == 0)
-                {
+                if ((null == secBufferBytesArray) || (0 == secBufferBytesArray.Length)) {
                     throw new ArgumentException("secBufferBytesArray cannot be null or 0 length");
                 }
-
                 ulVersion = (int)SecBufferType.SECBUFFER_VERSION;
                 cBuffers = secBufferBytesArray.Length;
-
                 //Allocate memory for SecBuffer Array....
                 pBuffers = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(SecBuffer)) * cBuffers);
-
-                for (int Index = 0; Index < secBufferBytesArray.Length; Index++)
-                {
+                for (int Index = 0; Index < secBufferBytesArray.Length; Index++) {
                     //Super hack: Now allocate memory for the individual SecBuffers
                     //and just copy the bit values to the SecBuffer array!!!
                     SecBuffer ThisSecBuffer = new SecBuffer(secBufferBytesArray[Index].Buffer, secBufferBytesArray[Index].BufferType);
@@ -979,29 +1051,28 @@ namespace Rubeus
 
             public void Dispose()
             {
-                if (pBuffers != IntPtr.Zero)
-                {
-                    if (cBuffers == 1)
-                    {
+                if (IntPtr.Zero != pBuffers) {
+                    return;
+                }
+                try {
+                    if (1 == cBuffers) {
                         SecBuffer ThisSecBuffer = (SecBuffer)Marshal.PtrToStructure(pBuffers, typeof(SecBuffer));
                         ThisSecBuffer.Dispose();
+                        return;
                     }
-                    else
-                    {
-                        for (int Index = 0; Index < cBuffers; Index++)
-                        {
-                            //The bits were written out the following order:
-                            //int cbBuffer;
-                            //int BufferType;
-                            //pvBuffer;
-                            //What we need to do here is to grab a hold of the pvBuffer allocate by the individual
-                            //SecBuffer and release it...
-                            int CurrentOffset = Index * Marshal.SizeOf(typeof(SecBuffer));
-                            IntPtr SecBufferpvBuffer = Marshal.ReadIntPtr(pBuffers, CurrentOffset + Marshal.SizeOf(typeof(int)) + Marshal.SizeOf(typeof(int)));
-                            Marshal.FreeHGlobal(SecBufferpvBuffer);
-                        }
+                    for (int bufferIndex = 0; bufferIndex < cBuffers; bufferIndex++) {
+                        //The bits were written out the following order:
+                        //int cbBuffer;
+                        //int BufferType;
+                        //pvBuffer;
+                        //What we need to do here is to grab a hold of the pvBuffer allocate by the individual
+                        //SecBuffer and release it...
+                        int CurrentOffset = bufferIndex * Marshal.SizeOf(typeof(SecBuffer));
+                        IntPtr SecBufferpvBuffer = Marshal.ReadIntPtr(pBuffers, CurrentOffset + Marshal.SizeOf(typeof(int)) + Marshal.SizeOf(typeof(int)));
+                        Marshal.FreeHGlobal(SecBufferpvBuffer);
                     }
-
+                }
+                finally {
                     Marshal.FreeHGlobal(pBuffers);
                     pBuffers = IntPtr.Zero;
                 }
@@ -1009,57 +1080,47 @@ namespace Rubeus
 
             public byte[] GetSecBufferByteArray()
             {
-                byte[] Buffer = null;
+                byte[] result = null;
 
-                if (pBuffers == IntPtr.Zero)
-                {
-                    throw new InvalidOperationException("Object has already been disposed!!!");
+                if (IntPtr.Zero == pBuffers) {
+                    throw new ObjectDisposedException("Object has already been disposed!!!");
                 }
-
-                if (cBuffers == 1)
-                {
+                if (1 == cBuffers) {
                     SecBuffer ThisSecBuffer = (SecBuffer)Marshal.PtrToStructure(pBuffers, typeof(SecBuffer));
 
-                    if (ThisSecBuffer.cbBuffer > 0)
-                    {
-                        Buffer = new byte[ThisSecBuffer.cbBuffer];
-                        Marshal.Copy(ThisSecBuffer.pvBuffer, Buffer, 0, ThisSecBuffer.cbBuffer);
+                    if (ThisSecBuffer.cbBuffer > 0) {
+                        result = new byte[ThisSecBuffer.cbBuffer];
+                        Marshal.Copy(ThisSecBuffer.pvBuffer, result, 0, ThisSecBuffer.cbBuffer);
                     }
+                    return result;
                 }
-                else
-                {
-                    int BytesToAllocate = 0;
+                int BytesToAllocate = 0;
 
-                    for (int Index = 0; Index < cBuffers; Index++)
-                    {
-                        //The bits were written out the following order:
-                        //int cbBuffer;
-                        //int BufferType;
-                        //pvBuffer;
-                        //What we need to do here calculate the total number of bytes we need to copy...
-                        int CurrentOffset = Index * Marshal.SizeOf(typeof(SecBuffer));
-                        BytesToAllocate += Marshal.ReadInt32(pBuffers, CurrentOffset);
-                    }
-
-                    Buffer = new byte[BytesToAllocate];
-
-                    for (int Index = 0, BufferIndex = 0; Index < cBuffers; Index++)
-                    {
-                        //The bits were written out the following order:
-                        //int cbBuffer;
-                        //int BufferType;
-                        //pvBuffer;
-                        //Now iterate over the individual buffers and put them together into a
-                        //byte array...
-                        int CurrentOffset = Index * Marshal.SizeOf(typeof(SecBuffer));
-                        int BytesToCopy = Marshal.ReadInt32(pBuffers, CurrentOffset);
-                        IntPtr SecBufferpvBuffer = Marshal.ReadIntPtr(pBuffers, CurrentOffset + Marshal.SizeOf(typeof(int)) + Marshal.SizeOf(typeof(int)));
-                        Marshal.Copy(SecBufferpvBuffer, Buffer, BufferIndex, BytesToCopy);
-                        BufferIndex += BytesToCopy;
-                    }
+                for (int Index = 0; Index < cBuffers; Index++) {
+                    //The bits were written out the following order:
+                    //int cbBuffer;
+                    //int BufferType;
+                    //pvBuffer;
+                    //What we need to do here calculate the total number of bytes we need to copy...
+                    int CurrentOffset = Index * Marshal.SizeOf(typeof(SecBuffer));
+                    BytesToAllocate += Marshal.ReadInt32(pBuffers, CurrentOffset);
                 }
+                result = new byte[BytesToAllocate];
 
-                return (Buffer);
+                for (int Index = 0, BufferIndex = 0; Index < cBuffers; Index++) {
+                    //The bits were written out the following order:
+                    //int cbBuffer;
+                    //int BufferType;
+                    //pvBuffer;
+                    //Now iterate over the individual buffers and put them together into a
+                    //byte array...
+                    int CurrentOffset = Index * Marshal.SizeOf(typeof(SecBuffer));
+                    int BytesToCopy = Marshal.ReadInt32(pBuffers, CurrentOffset);
+                    IntPtr SecBufferpvBuffer = Marshal.ReadIntPtr(pBuffers, CurrentOffset + Marshal.SizeOf(typeof(int)) + Marshal.SizeOf(typeof(int)));
+                    Marshal.Copy(SecBufferpvBuffer, result, BufferIndex, BytesToCopy);
+                    BufferIndex += BytesToCopy;
+                }
+                return result;
             }
         }
 
@@ -1068,12 +1129,7 @@ namespace Rubeus
         {
             public uint LowPart;
             public int HighPart;
-            public SECURITY_INTEGER(int dummy)
-            {
-                LowPart = 0;
-                HighPart = 0;
-            }
-        };
+        }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct SECURITY_HANDLE
@@ -1081,22 +1137,22 @@ namespace Rubeus
             public IntPtr LowPart;
             public IntPtr HighPart;
 
-            public SECURITY_HANDLE(int dummy)
-            {
-                LowPart = HighPart = IntPtr.Zero;
-            }
-        };
+            // BS : Unused
+            //public SECURITY_HANDLE(int dummy)
+            //{
+            //    LowPart = HighPart = IntPtr.Zero;
+            //}
+        }
 
-        [StructLayout(LayoutKind.Sequential)]
-        public struct SecPkgContext_Sizes
-        {
-            public uint cbMaxToken;
-            public uint cbMaxSignature;
-            public uint cbBlockSize;
-            public uint cbSecurityTrailer;
-        };
-
-
+        // BS : Unused
+        //[StructLayout(LayoutKind.Sequential)]
+        //public struct SecPkgContext_Sizes
+        //{
+        //    public uint cbMaxToken;
+        //    public uint cbMaxSignature;
+        //    public uint cbBlockSize;
+        //    public uint cbSecurityTrailer;
+        //};
 
         // functions
         // Adapted from Vincent LE TOUX' "MakeMeEnterpriseAdmin"
@@ -1111,13 +1167,6 @@ namespace Rubeus
         public delegate int KERB_ECRYPT_Encrypt(IntPtr pContext, byte[] data, int dataSize, byte[] output, ref int outputSize);
         public delegate int KERB_ECRYPT_Decrypt(IntPtr pContext, byte[] data, int dataSize, byte[] output, ref int outputSize);
         public delegate int KERB_ECRYPT_Finish(ref IntPtr pContext);
-
-        //https://github.com/vletoux/MakeMeEnterpriseAdmin/blob/master/MakeMeEnterpriseAdmin.ps1#L1760-L1767
-        public delegate int KERB_CHECKSUM_Initialize(int unk0, out IntPtr pContext);
-        public delegate int KERB_CHECKSUM_Sum(IntPtr pContext, int Size, byte[] Buffer);
-        public delegate int KERB_CHECKSUM_Finalize(IntPtr pContext, byte[] Buffer);
-        public delegate int KERB_CHECKSUM_Finish(ref IntPtr pContext);
-        public delegate int KERB_CHECKSUM_InitializeEx(byte[] Key, int KeySize, int KeyUsage, out IntPtr pContext);
 
         [DllImport("Netapi32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         internal static extern NativeReturnCode DsGetDcName(
@@ -1281,7 +1330,7 @@ namespace Rubeus
 
         [DllImport("Secur32.dll", SetLastError = false)]
         public static extern uint LsaEnumerateLogonSessions(
-            out UInt64 LogonSessionCount,
+            out ulong LogonSessionCount,
             out IntPtr LogonSessionList
         );
 
@@ -1311,7 +1360,7 @@ namespace Rubeus
         );
 
         [DllImport("secur32.dll", SetLastError = true)]
-        public static extern int InitializeSecurityContext(
+        internal static extern int InitializeSecurityContext(
             ref SECURITY_HANDLE phCredential,//PCredHandle
             IntPtr phContext, //PCtxtHandle
             string pszTargetName,

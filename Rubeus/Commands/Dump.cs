@@ -11,26 +11,32 @@ namespace Rubeus.Commands
         {
             string luidString;
 
-            if (arguments.TryGetValue("/luid",out luidString)) {
+            if (arguments.TryGetValue("/luid", out luidString)) {
                 string service = arguments.GetArgument("/service", string.Empty);
-                uint luid = 0;
-                if (!uint.TryParse(luidString, out luid)) {
-                    try {
-                        luid = Convert.ToUInt32(luidString, 16);
-                    }
-                    catch {
-                        Console.WriteLine("[X] Invalid LUID format ({0})\r\n", luidString);
-                        return;
-                    }
+                Interop.LUID luid;
+                int fromBase;
+                if (luidString.StartsWith("0x", StringComparison.InvariantCultureIgnoreCase)) {
+                    luidString = (2 == luidString.Length) ? string.Empty : luidString.Substring(2);
+                    fromBase = 16;
+                }
+                else {
+                    fromBase = 10;
+                }
+                try {
+                    luid = new Interop.LUID(luidString, fromBase);
+                }
+                catch {
+                    Console.WriteLine("[X] Invalid LUID format ({0})\r\n", luidString);
+                    return;
                 }
                 LSA.ListKerberosTicketData(luid, service);
                 return;
             }
             if (arguments.ContainsKey("/service")) {
-                LSA.ListKerberosTicketData(0, arguments["/service"]);
+                LSA.ListKerberosTicketData(Interop.LUID.Empty, arguments["/service"]);
                 return;
             }
-            LSA.ListKerberosTicketData();
+            LSA.ListKerberosTicketData(Interop.LUID.Empty);
             return;
         }
     }
