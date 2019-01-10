@@ -696,24 +696,26 @@ namespace Rubeus
         {
             public ushort Length;
             public ushort MaximumLength;
-            public IntPtr buffer;
+            public IntPtr Buffer;
 
             public UNICODE_STRING(string s)
             {
                 Length = (ushort)(s.Length * 2);
                 MaximumLength = (ushort)(Length + 2);
-                buffer = Marshal.StringToHGlobalUni(s);
+                Buffer = Marshal.StringToHGlobalUni(s);
             }
 
             public void Dispose()
             {
-                Marshal.FreeHGlobal(buffer);
-                buffer = IntPtr.Zero;
+                if (IntPtr.Zero != Buffer) {
+                    Marshal.FreeHGlobal(Buffer);
+                }
+                Buffer = IntPtr.Zero;
             }
 
             public override string ToString()
             {
-                return Marshal.PtrToStringUni(buffer);
+                return Marshal.PtrToStringUni(Buffer);
             }
         }
 
@@ -1008,18 +1010,14 @@ namespace Rubeus
             {
                 ulVersion = (int)SecBufferType.SECBUFFER_VERSION;
                 cBuffers = 1;
-                SecBuffer ThisSecBuffer = new SecBuffer(bufferSize);
-                pBuffers = Marshal.AllocHGlobal(Marshal.SizeOf(ThisSecBuffer));
-                Marshal.StructureToPtr(ThisSecBuffer, pBuffers, false);
+                pBuffers = Helpers.AllocAndInit(new SecBuffer(bufferSize));
             }
 
             public SecBufferDesc(byte[] secBufferBytes)
             {
                 ulVersion = (int)SecBufferType.SECBUFFER_VERSION;
                 cBuffers = 1;
-                SecBuffer ThisSecBuffer = new SecBuffer(secBufferBytes);
-                pBuffers = Marshal.AllocHGlobal(Marshal.SizeOf(ThisSecBuffer));
-                Marshal.StructureToPtr(ThisSecBuffer, pBuffers, false);
+                pBuffers = Helpers.AllocAndInit(new SecBuffer(secBufferBytes));
             }
 
             public SecBufferDesc(MultipleSecBufferHelper[] secBufferBytesArray)
@@ -1329,13 +1327,13 @@ namespace Rubeus
         );
 
         [DllImport("Secur32.dll", SetLastError = false)]
-        public static extern uint LsaEnumerateLogonSessions(
-            out ulong LogonSessionCount,
+        internal static extern NativeReturnCode LsaEnumerateLogonSessions(
+            out UInt64 LogonSessionCount,
             out IntPtr LogonSessionList
         );
 
         [DllImport("Secur32.dll", SetLastError = false)]
-        public static extern uint LsaGetLogonSessionData(
+        internal static extern NativeReturnCode LsaGetLogonSessionData(
             IntPtr luid,
             out IntPtr ppLogonSessionData
         );
