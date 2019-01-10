@@ -1,7 +1,7 @@
 ﻿using System;
-using Asn1;
-using System.Collections.Generic;
 using System.Text;
+
+using Rubeus.Asn1;
 
 namespace Rubeus
 {
@@ -21,7 +21,7 @@ namespace Rubeus
 
     // only used by the changepw command
 
-    public class EncKrbPrivPart
+    public class EncKrbPrivPart : IAsnEncodable
     {
         public EncKrbPrivPart()
         {
@@ -41,35 +41,25 @@ namespace Rubeus
 
         public AsnElt Encode()
         {
-            // user-data       [0] OCTET STRING
-            byte[] pwBytes = Encoding.ASCII.GetBytes(new_password);
-            AsnElt new_passwordAsn = AsnElt.MakeBlob(pwBytes);
-            AsnElt new_passwordSeq = AsnElt.MakeSequence(new AsnElt[] { new_passwordAsn });
-            new_passwordSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 0, new_passwordSeq);
-
-            // seq-number      [3] UInt32 OPTIONAL
-            AsnElt seq_numberAsn = AsnElt.MakeInteger(seq_number);
-            AsnElt seq_numberSeq = AsnElt.MakeSequence(new AsnElt[] { seq_numberAsn });
-            seq_numberSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 3, seq_numberSeq);
-
-            //  s-address       [4] HostAddress
-            AsnElt hostAddressTypeAsn = AsnElt.MakeInteger(20);
-            AsnElt hostAddressTypeSeq = AsnElt.MakeSequence(new AsnElt[] { hostAddressTypeAsn });
-            hostAddressTypeSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 0, hostAddressTypeSeq);
-
-            byte[] hostAddressAddressBytes = Encoding.ASCII.GetBytes(host_name);
-            AsnElt hostAddressAddressAsn = AsnElt.MakeBlob(hostAddressAddressBytes);
-            AsnElt hostAddressAddressSeq = AsnElt.MakeSequence(new AsnElt[] { hostAddressAddressAsn });
-            hostAddressAddressSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 1, hostAddressAddressSeq);
-
-            AsnElt hostAddressSeq = AsnElt.MakeSequence(new[] { hostAddressTypeSeq, hostAddressAddressSeq });
-            AsnElt hostAddressSeq2 = AsnElt.MakeSequence(new AsnElt[] { hostAddressSeq });
-            hostAddressSeq2 = AsnElt.MakeImplicit(AsnElt.CONTEXT, 4, hostAddressSeq2);
-
-            AsnElt seq = AsnElt.MakeSequence(new[] { new_passwordSeq, seq_numberSeq, hostAddressSeq2 });
-            AsnElt seq2 = AsnElt.MakeSequence(new[] { seq });
-
-            return AsnElt.MakeImplicit(AsnElt.APPLICATION, 28, seq2);
+            return AsnElt.MakeImplicit(AsnElt.APPLICATION, 28,
+                AsnElt.MakeSequence(
+                    // user-data [0] OCTET STRING
+                    AsnElt.MakeSequence(
+                        AsnElt.MakeImplicit(AsnElt.CONTEXT, 0,
+                            AsnElt.MakeSequence(
+                                AsnElt.MakeBlob(Encoding.ASCII.GetBytes(new_password)))),
+                        // seq-number [3] UInt32 OPTIONAL
+                        AsnElt.MakeImplicit(AsnElt.CONTEXT, 3,
+                            AsnElt.MakeSequence(AsnElt.MakeInteger(seq_number))),
+                        //  s-address [4] HostAddress
+                        AsnElt.MakeImplicit(AsnElt.CONTEXT, 4,
+                            AsnElt.MakeSequence(
+                                AsnElt.MakeSequence(
+                                    AsnElt.MakeImplicit(AsnElt.CONTEXT, 0,
+                                        AsnElt.MakeSequence(AsnElt.MakeInteger(20))),
+                                    AsnElt.MakeImplicit(AsnElt.CONTEXT, 1,
+                                        AsnElt.MakeSequence(
+                                            AsnElt.MakeBlob(Encoding.ASCII.GetBytes(host_name))))))))));
         }
 
         public string new_password { get; set; }

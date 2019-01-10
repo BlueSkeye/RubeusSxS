@@ -1,7 +1,7 @@
-﻿using Asn1;
-using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text;
+
+using Rubeus.Asn1;
 
 namespace Rubeus
 {
@@ -10,7 +10,7 @@ namespace Rubeus
     //        name-string[1] SEQUENCE OF KerberosString
     //}
 
-    public class PrincipalName
+    public class PrincipalName : IAsnEncodable
     {
         public PrincipalName()
         {
@@ -43,8 +43,6 @@ namespace Rubeus
             //      service and other unique instance (krbtgt)
 
             name_type = body.FirstElement.FirstElement.GetInteger();
-
-
             name_string = new List<string>();
             foreach(AsnElt item in body.SecondElement.FirstElement.EnumerateElements()) {
                 name_string.Add(Encoding.ASCII.GetString(item.GetOctetString()));
@@ -53,35 +51,24 @@ namespace Rubeus
 
         public AsnElt Encode()
         {
-            // name-type[0] Int32
-            AsnElt nameTypeElt = AsnElt.MakeInteger(name_type);
-            AsnElt nameTypeSeq = AsnElt.MakeSequence(new AsnElt[] { nameTypeElt });
-            nameTypeSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 0, nameTypeSeq);
-
-
-            // name-string[1] SEQUENCE OF KerberosString
-            //  add in the name string sequence (one or more)
             AsnElt[] strings = new AsnElt[name_string.Count];
 
-            for (int i = 0; i < name_string.Count; ++i)
-            {
-                string name = name_string[i];
-                AsnElt nameStringElt = AsnElt.MakeString(AsnElt.IA5String, name);
-                nameStringElt = AsnElt.MakeImplicit(AsnElt.UNIVERSAL, AsnElt.GeneralString, nameStringElt);
-                strings[i] = nameStringElt;
+            for (int i = 0; i < name_string.Count; ++i) {
+                strings[i] = AsnElt.MakeImplicit(AsnElt.UNIVERSAL, AsnElt.GeneralString,
+                    AsnElt.MakeString(AsnElt.IA5String, name_string[i]));
             }
 
-            AsnElt stringSeq = AsnElt.MakeSequence(strings);
-            AsnElt stringSeq2 = AsnElt.MakeSequence(new[] { stringSeq } );
-            stringSeq2 = AsnElt.MakeImplicit(AsnElt.CONTEXT, 1, stringSeq2);
-
-
-            // build the final sequences
-            AsnElt seq = AsnElt.MakeSequence(new[] { nameTypeSeq, stringSeq2 });
-
-            AsnElt seq2 = AsnElt.MakeSequence(new[] { seq });
-
-            return seq2;
+            return AsnElt.MakeSequence(
+                AsnElt.MakeSequence(
+                    // name-type[0] Int32
+                    AsnElt.MakeImplicit(AsnElt.CONTEXT, 0,
+                        AsnElt.MakeSequence(
+                            AsnElt.MakeInteger(name_type))),
+                    // name-string[1] SEQUENCE OF KerberosString
+                    //  add in the name string sequence (one or more)
+                    AsnElt.MakeImplicit(AsnElt.CONTEXT, 1,
+                        AsnElt.MakeSequence(
+                            AsnElt.MakeSequence(strings)))));
         }
 
         public long name_type { get; set; }

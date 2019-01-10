@@ -12,7 +12,7 @@ namespace Rubeus
 	   // auth-package[3] KerberosString
     //}
 
-    public class PA_FOR_USER
+    public class PA_FOR_USER : IAsnEncodable
     {
         public PA_FOR_USER(byte[] key, string name, string realm)
         {
@@ -50,33 +50,30 @@ namespace Rubeus
             List<AsnElt> allNodes = new List<AsnElt>();
 
             // userName[0] PrincipalName
-            AsnElt userNameAsn = userName.Encode();
-            userNameAsn = AsnElt.MakeImplicit(AsnElt.CONTEXT, 0, userNameAsn);
-            allNodes.Add(userNameAsn);
+            allNodes.Add(
+                AsnElt.MakeImplicit(AsnElt.CONTEXT, 0, userName.Encode()));
 
             // userRealm[1] Realm
-            AsnElt userRealmAsn = AsnElt.MakeString(AsnElt.IA5String, userRealm);
-            userRealmAsn = AsnElt.MakeImplicit(AsnElt.UNIVERSAL, AsnElt.GeneralString, userRealmAsn);
-            AsnElt userRealmSeq = AsnElt.MakeSequence(new[] { userRealmAsn });
-            userRealmSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 1, userRealmSeq);
-            allNodes.Add(userRealmSeq);
+            allNodes.Add(
+                AsnElt.MakeImplicit(AsnElt.CONTEXT, 1,
+                    AsnElt.MakeSequence(
+                        AsnElt.MakeImplicit(AsnElt.UNIVERSAL, AsnElt.GeneralString,
+                            AsnElt.MakeString(AsnElt.IA5String, userRealm)))));
 
             // cksum[2] Checksum
-            AsnElt checksumAsn = cksum.Encode();
-            checksumAsn = AsnElt.MakeImplicit(AsnElt.CONTEXT, 2, checksumAsn);
-            allNodes.Add(checksumAsn);
+            allNodes.Add(
+                AsnElt.MakeImplicit(AsnElt.CONTEXT, 2, cksum.Encode()));
 
             // auth-package[3] KerberosString
-            AsnElt auth_packageAsn = AsnElt.MakeString(AsnElt.IA5String, auth_package);
-            auth_packageAsn = AsnElt.MakeImplicit(AsnElt.UNIVERSAL, AsnElt.GeneralString, auth_packageAsn);
-            AsnElt auth_packageSeq = AsnElt.MakeSequence(new[] { auth_packageAsn });
-            auth_packageSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 3, auth_packageSeq);
-            allNodes.Add(auth_packageSeq);
+            allNodes.Add(
+                AsnElt.MakeImplicit(AsnElt.CONTEXT, 3,
+                    AsnElt.MakeSequence(
+                        AsnElt.MakeImplicit(AsnElt.UNIVERSAL, AsnElt.GeneralString,
+                            AsnElt.MakeString(AsnElt.IA5String, auth_package)))));
 
 
             // package it all up
             AsnElt seq = AsnElt.MakeSequence(allNodes.ToArray());
-
 
             // tag the final total
             //AsnElt final = AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] { seq });

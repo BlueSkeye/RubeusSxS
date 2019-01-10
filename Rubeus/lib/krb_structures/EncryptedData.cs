@@ -1,11 +1,10 @@
 ﻿using System;
-using Asn1;
-using System.Text;
-using System.Collections.Generic;
+
+using Rubeus.Asn1;
 
 namespace Rubeus
 {
-    public class EncryptedData
+    public class EncryptedData : IAsnEncodable
     {
         //EncryptedData::= SEQUENCE {
         //    etype[0] Int32 -- EncryptionType --,
@@ -45,26 +44,23 @@ namespace Rubeus
 
         public AsnElt Encode()
         {
-            // etype   [0] Int32 -- EncryptionType --,
-            AsnElt etypeAsn = AsnElt.MakeInteger(etype);
-            AsnElt etypeSeq = AsnElt.MakeSequence(new AsnElt[] { etypeAsn });
-            etypeSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 0, etypeSeq);
+            // etype [0] Int32 -- EncryptionType --,
+            AsnElt etypeSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 0,
+                AsnElt.MakeSequence(AsnElt.MakeInteger(etype)));
 
-            // cipher  [2] OCTET STRING -- ciphertext
-            AsnElt cipherAsn = AsnElt.MakeBlob(cipher);
-            AsnElt cipherSeq = AsnElt.MakeSequence(new AsnElt[] { cipherAsn });
-            cipherSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 2, cipherSeq);
+            // cipher [2] OCTET STRING -- ciphertext
+            AsnElt cipherSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 2,
+                AsnElt.MakeSequence(AsnElt.MakeBlob(cipher)));
 
-            if (kvno != 0) {
-                // kvno    [1] UInt32 OPTIONAL
-                AsnElt kvnoAsn = AsnElt.MakeInteger(kvno);
-                AsnElt kvnoSeq = AsnElt.MakeSequence(new AsnElt[] { kvnoAsn });
-                kvnoSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 1, kvnoSeq);
+            if (0 != kvno) {
+                // kvno [1] UInt32 OPTIONAL
+                AsnElt kvnoSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 1,
+                    AsnElt.MakeSequence(AsnElt.MakeInteger(kvno)));
 
-                return AsnElt.MakeSequence(new AsnElt[] { etypeSeq, kvnoSeq, cipherSeq });
+                return AsnElt.MakeSequence(etypeSeq, kvnoSeq, cipherSeq);
             }
             else {
-                return AsnElt.MakeSequence(new AsnElt[] { etypeSeq, cipherSeq });
+                return AsnElt.MakeSequence(etypeSeq, cipherSeq);
             }
         }
 

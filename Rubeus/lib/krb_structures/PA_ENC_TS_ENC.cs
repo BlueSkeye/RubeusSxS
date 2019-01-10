@@ -1,5 +1,6 @@
-﻿using Asn1;
-using System;
+﻿using System;
+
+using Rubeus.Asn1;
 
 namespace Rubeus
 {
@@ -8,7 +9,7 @@ namespace Rubeus
     //        pausec[1]                    INTEGER OPTIONAL
     //}
 
-    public class PA_ENC_TS_ENC
+    public class PA_ENC_TS_ENC : IAsnEncodable
     {
         public PA_ENC_TS_ENC()
         {
@@ -22,12 +23,11 @@ namespace Rubeus
 
         //public PA_ENC_TS_ENC(AsnElt value)
         //{
-
         //}
 
         public AsnElt Encode()
         {
-            return AsnElt.Make(AsnElt.SEQUENCE,
+            return AsnElt.MakeSequence(
                 AsnElt.MakeImplicit(AsnElt.CONTEXT, 0,
                     AsnElt.MakeSequence(AsnElt.MakeString(AsnElt.GeneralizedTime, patimestamp.ToString(Constants.UTCTimeFormat)))));
         }

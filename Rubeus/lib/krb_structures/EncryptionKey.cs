@@ -1,11 +1,10 @@
 ﻿using System;
-using Asn1;
-using System.Text;
-using System.Collections.Generic;
+
+using Rubeus.Asn1;
 
 namespace Rubeus
 {
-    public class EncryptionKey
+    public class EncryptionKey : IAsnEncodable
     {
         //EncryptionKey::= SEQUENCE {
         //    keytype[0] Int32 -- actually encryption type --,
@@ -40,19 +39,17 @@ namespace Rubeus
 
         public AsnElt Encode()
         {
-            // keytype[0] Int32 -- actually encryption type --
-            AsnElt keyTypeElt = AsnElt.MakeInteger((long)keytype);
-            AsnElt keyTypeSeq = AsnElt.MakeSequence(new AsnElt[] { keyTypeElt });
-            keyTypeSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 0, keyTypeSeq);
-
-            // keyvalue[1] OCTET STRING
-            AsnElt blob = AsnElt.MakeBlob(keyvalue);
-            AsnElt blobSeq = AsnElt.MakeSequence(new[] { blob });
-            blobSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 1, blobSeq);
-
             // build the final sequences (s)
-            AsnElt seq = AsnElt.MakeSequence(new[] { keyTypeSeq, blobSeq });
-            return AsnElt.MakeSequence(new[] { seq });
+            return AsnElt.MakeSequence(
+                AsnElt.MakeSequence(
+                    // keytype[0] Int32 -- actually encryption type --
+                    AsnElt.MakeImplicit(AsnElt.CONTEXT, 0,
+                        AsnElt.MakeSequence(
+                            AsnElt.MakeInteger((long)keytype))),
+                    // keyvalue[1] OCTET STRING
+                    AsnElt.MakeImplicit(AsnElt.CONTEXT, 1,
+                        AsnElt.MakeSequence(
+                            AsnElt.MakeBlob(keyvalue)))));
         }
 
         internal Rubeus.Interop.KERB_ETYPE keytype { get; set; }

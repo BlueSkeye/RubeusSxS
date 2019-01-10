@@ -44,6 +44,7 @@
     <Compile Include="Asn1\AsnException.cs" />
     <Compile Include="Asn1\AsnIO.cs" />
     <Compile Include="Asn1\AsnOID.cs" />
+    <Compile Include="Asn1\AsnTagClass.cs" />
     <Compile Include="Commands\Asktgs.cs" />
     <Compile Include="Commands\Asktgt.cs" />
     <Compile Include="Commands\Asreproast.cs" />
@@ -68,6 +69,7 @@
     <Compile Include="lib\Crypto.cs" />
     <Compile Include="lib\Harvest.cs" />
     <Compile Include="lib\Helpers.cs" />
+    <Compile Include="Asn1\IAsnEncodable.cs" />
     <Compile Include="lib\Interop.cs" />
     <Compile Include="lib\krb_structures\AP_REQ.cs" />
     <Compile Include="lib\krb_structures\AS_REP.cs" />

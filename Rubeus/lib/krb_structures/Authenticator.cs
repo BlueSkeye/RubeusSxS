@@ -1,11 +1,11 @@
 ﻿using System;
-using Asn1;
-using System.Text;
 using System.Collections.Generic;
+
+using Rubeus.Asn1;
 
 namespace Rubeus
 {
-    public class Authenticator
+    public class Authenticator : IAsnEncodable
     {
         //Authenticator   ::= [APPLICATION 2] SEQUENCE  {
         //        authenticator-vno       [0] INTEGER (5),
@@ -41,60 +41,43 @@ namespace Rubeus
         {
             List<AsnElt> allNodes = new List<AsnElt>();
 
-            // authenticator-vno       [0] INTEGER (5)
-            AsnElt pvnoAsn = AsnElt.MakeInteger(authenticator_vno);
-            AsnElt pvnoSeq = AsnElt.MakeSequence(new[] { pvnoAsn });
-            pvnoSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 0, pvnoSeq);
-            allNodes.Add(pvnoSeq);
-
-            // crealm                  [1] Realm
-            AsnElt realmAsn = AsnElt.MakeString(AsnElt.IA5String, crealm);
-            realmAsn = AsnElt.MakeImplicit(AsnElt.UNIVERSAL, AsnElt.GeneralString, realmAsn);
-            AsnElt realmSeq = AsnElt.MakeSequence(new[] { realmAsn });
-            realmSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 1, realmSeq);
-            allNodes.Add(realmSeq);
-
-            // cname                   [2] PrincipalName
-            AsnElt snameElt = cname.Encode();
-            snameElt = AsnElt.MakeImplicit(AsnElt.CONTEXT, 2, snameElt);
-            allNodes.Add(snameElt);
-
+            // authenticator-vno [0] INTEGER (5)
+            allNodes.Add(AsnElt.MakeImplicit(AsnElt.CONTEXT, 0,
+                AsnElt.MakeSequence(
+                    AsnElt.MakeInteger(authenticator_vno))));
+            // crealm [1] Realm
+            allNodes.Add(AsnElt.MakeImplicit(AsnElt.CONTEXT, 1,
+                AsnElt.MakeSequence(
+                    AsnElt.MakeImplicit(AsnElt.UNIVERSAL, AsnElt.GeneralString,
+                        AsnElt.MakeString(AsnElt.IA5String, crealm)))));
+            // cname [2] PrincipalName
+            allNodes.Add(AsnElt.MakeImplicit(AsnElt.CONTEXT, 2,
+                cname.Encode()));
             // TODO: correct format (UInt32)?
-            // cusec                   [4] Microseconds
-            AsnElt nonceAsn = AsnElt.MakeInteger(cusec);
-            AsnElt nonceSeq = AsnElt.MakeSequence(new[] { nonceAsn });
-            nonceSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 4, nonceSeq);
-            allNodes.Add(nonceSeq);
-
-            // ctime                   [5] KerberosTime
-            AsnElt tillAsn = AsnElt.MakeString(AsnElt.GeneralizedTime, ctime.ToString(Constants.UTCTimeFormat));
-            AsnElt tillSeq = AsnElt.MakeSequence(new[] { tillAsn });
-            tillSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 5, tillSeq);
-            allNodes.Add(tillSeq);
-
-            if (subkey != null) {
-                // subkey                  [6] EncryptionKey OPTIONAL
-                AsnElt keyAsn = subkey.Encode();
-                keyAsn = AsnElt.MakeImplicit(AsnElt.CONTEXT, 6, keyAsn);
-                allNodes.Add(keyAsn);
+            // cusec [4] Microseconds
+            allNodes.Add(AsnElt.MakeImplicit(AsnElt.CONTEXT, 4,
+                AsnElt.MakeSequence(
+                    AsnElt.MakeInteger(cusec))));
+            // ctime [5] KerberosTime
+            allNodes.Add(AsnElt.MakeImplicit(AsnElt.CONTEXT, 5,
+                AsnElt.MakeSequence(
+                    AsnElt.MakeString(AsnElt.GeneralizedTime, ctime.ToString(Constants.UTCTimeFormat)))));
+            if (null != subkey) {
+                // subkey [6] EncryptionKey OPTIONAL
+                allNodes.Add(AsnElt.MakeImplicit(AsnElt.CONTEXT, 6,
+                    subkey.Encode()));
             }
 
-            if(seq_number != 0) {
-                // seq-number              [7] UInt32 OPTIONAL
-                AsnElt seq_numberASN = AsnElt.MakeInteger(seq_number);
-                AsnElt seq_numberSeq = AsnElt.MakeSequence(new[] { seq_numberASN });
-                seq_numberSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 7, seq_numberSeq);
-                allNodes.Add(seq_numberSeq);
+            if (0 != seq_number) {
+                // seq-number [7] UInt32 OPTIONAL
+                allNodes.Add(AsnElt.MakeImplicit(AsnElt.CONTEXT, 7,
+                    AsnElt.MakeSequence(
+                        AsnElt.MakeInteger(seq_number))));
             }
-
-            // package it all up
-            AsnElt seq = AsnElt.MakeSequence(allNodes.ToArray());
-
             // tag the final total
-            AsnElt final = AsnElt.MakeSequence(new AsnElt[] { seq });
-            final = AsnElt.MakeImplicit(AsnElt.APPLICATION, 2, final);
-
-            return final;
+            return AsnElt.MakeImplicit(AsnElt.APPLICATION, 2,
+                AsnElt.MakeSequence(
+                    AsnElt.MakeSequence(allNodes.ToArray())));
         }
 
         public long authenticator_vno { get; set; }

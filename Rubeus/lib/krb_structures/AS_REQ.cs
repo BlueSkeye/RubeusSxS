@@ -1,7 +1,7 @@
-﻿using Asn1;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.IO;
+
+using Rubeus.Asn1;
 
 namespace Rubeus
 {
@@ -16,7 +16,7 @@ namespace Rubeus
     //    req-body        [4] KDC-REQ-BODY
     //}
     
-    public class AS_REQ
+    public class AS_REQ : IAsnEncodable
     {
         public static byte[] NewASReq(string userName, string domain, Interop.KERB_ETYPE etype)
         {
@@ -145,44 +145,30 @@ namespace Rubeus
 
         public AsnElt Encode()
         {
-            // pvno            [1] INTEGER (5)
-            AsnElt pvnoAsn = AsnElt.MakeInteger(pvno);
-            AsnElt pvnoSeq = AsnElt.MakeSequence(new[] { pvnoAsn });
-            pvnoSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 1, pvnoSeq);
-
-
-            // msg-type        [2] INTEGER (10 -- AS -- )
-            AsnElt msg_type_ASN = AsnElt.MakeInteger(msg_type);
-            AsnElt msg_type_ASNSeq = AsnElt.MakeSequence(new[] { msg_type_ASN });
-            msg_type_ASNSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 2, msg_type_ASNSeq);
-
-
-            // padata          [3] SEQUENCE OF PA-DATA OPTIONAL
             List<AsnElt> padatas = new List<AsnElt>();
             foreach (PA_DATA pa in padata) {
                 padatas.Add(pa.Encode());
             }
 
-            AsnElt padata_ASNSeq = AsnElt.MakeSequence(padatas.ToArray());
-            AsnElt padata_ASNSeq2 = AsnElt.MakeSequence(new[] { padata_ASNSeq });
-            padata_ASNSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 3, padata_ASNSeq2);
-
-            // req-body        [4] KDC-REQ-BODY
-            AsnElt req_Body_ASN = req_body.Encode();
-            AsnElt req_Body_ASNSeq = AsnElt.MakeSequence(new[] { req_Body_ASN });
-            req_Body_ASNSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 4, req_Body_ASNSeq);
-
-
-            // encode it all into a sequence
-            AsnElt[] total = new[] { pvnoSeq, msg_type_ASNSeq, padata_ASNSeq, req_Body_ASNSeq };
-            AsnElt seq = AsnElt.MakeSequence(total);
-
-            // AS-REQ          ::= [APPLICATION 10] KDC-REQ
+            // AS-REQ ::= [APPLICATION 10] KDC-REQ
             //  put it all together and tag it with 10
-            AsnElt totalSeq = AsnElt.MakeSequence(new[] { seq });
-            totalSeq = AsnElt.MakeImplicit(AsnElt.APPLICATION, 10, totalSeq);
-
-            return totalSeq;
+            return AsnElt.MakeImplicit(AsnElt.APPLICATION, 10,
+                AsnElt.MakeSequence(
+                    // encode it all into a sequence
+                    AsnElt.MakeSequence(
+                        // pvno [1] INTEGER (5)
+                        AsnElt.MakeImplicit(AsnElt.CONTEXT, 1,
+                            AsnElt.MakeSequence(AsnElt.MakeInteger(pvno))),
+                        // msg-type [2] INTEGER (10 -- AS -- )
+                        AsnElt.MakeImplicit(AsnElt.CONTEXT, 2,
+                            AsnElt.MakeSequence(AsnElt.MakeInteger(msg_type))),
+                        // padata [3] SEQUENCE OF PA-DATA OPTIONAL
+                        AsnElt.MakeImplicit(AsnElt.CONTEXT, 3,
+                            AsnElt.MakeSequence(AsnElt.MakeSequence(padatas.ToArray()))),
+                        // req-body [4] KDC-REQ-BODY
+                        AsnElt.MakeImplicit(AsnElt.CONTEXT, 4,
+                            AsnElt.MakeSequence(req_body.Encode()))
+                        )));
         }
 
         public long pvno { get; set;}

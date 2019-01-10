@@ -1,11 +1,12 @@
 ﻿using System;
-using Asn1;
 using System.Text;
 using System.Collections.Generic;
 
+using Rubeus.Asn1;
+
 namespace Rubeus
 {
-    public class KDCReqBody
+    public class KDCReqBody : IAsnEncodable
     {
         //KDC-REQ-BODY::= SEQUENCE {
         //    kdc-options[0] KDCOptions,
@@ -104,80 +105,57 @@ namespace Rubeus
         public AsnElt Encode()
         {
             // TODO: error-checking!
-
             List<AsnElt> allNodes = new List<AsnElt>();
 
-            // kdc-options             [0] KDCOptions
+            // kdc-options [0] KDCOptions
             byte[] kdcOptionsBytes = BitConverter.GetBytes((UInt32)kdcOptions);
             if (BitConverter.IsLittleEndian) {
                 Array.Reverse(kdcOptionsBytes);
             }
-            AsnElt kdcOptionsAsn = AsnElt.MakeBitString(kdcOptionsBytes);
-            AsnElt kdcOptionsSeq = AsnElt.MakeSequence(new[] { kdcOptionsAsn });
-            kdcOptionsSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 0, kdcOptionsSeq);
-            allNodes.Add(kdcOptionsSeq);
-
-            // cname                   [1] PrincipalName
-            if (cname != null) {
-                AsnElt cnameElt = cname.Encode();
-                cnameElt = AsnElt.MakeImplicit(AsnElt.CONTEXT, 1, cnameElt);
-                allNodes.Add(cnameElt);
+            allNodes.Add(AsnElt.MakeImplicit(AsnElt.CONTEXT, 0,
+                AsnElt.MakeSequence(
+                    AsnElt.MakeBitString(kdcOptionsBytes))));
+            // cname [1] PrincipalName
+            if (null != cname) {
+                allNodes.Add(AsnElt.MakeImplicit(AsnElt.CONTEXT, 1,
+                    cname.Encode()));
             }
-
-            // realm                   [2] Realm
-            //                          --Server's realm
-            //                          -- Also client's in AS-REQ --
-            AsnElt realmAsn = AsnElt.MakeString(AsnElt.IA5String, realm);
-            realmAsn = AsnElt.MakeImplicit(AsnElt.UNIVERSAL, AsnElt.GeneralString, realmAsn);
-            AsnElt realmSeq = AsnElt.MakeSequence(new[] { realmAsn });
-            realmSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 2, realmSeq);
-            allNodes.Add(realmSeq);
-
-            // sname                   [3] PrincipalName OPTIONAL
-            AsnElt snameElt = sname.Encode();
-            snameElt = AsnElt.MakeImplicit(AsnElt.CONTEXT, 3, snameElt);
-            allNodes.Add(snameElt);
-
-            // from                    [4] KerberosTime OPTIONAL
-
-            // till                    [5] KerberosTime
-            AsnElt tillAsn = AsnElt.MakeString(AsnElt.GeneralizedTime, till.ToString(Constants.UTCTimeFormat));
-            AsnElt tillSeq = AsnElt.MakeSequence(new[] { tillAsn });
-            tillSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 5, tillSeq);
-            allNodes.Add(tillSeq);
-
-            // rtime                   [6] KerberosTime
-
-            // nonce                   [7] UInt32
-            AsnElt nonceAsn = AsnElt.MakeInteger(nonce);
-            AsnElt nonceSeq = AsnElt.MakeSequence(new[] { nonceAsn });
-            nonceSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 7, nonceSeq);
-            allNodes.Add(nonceSeq);
-
-            // etype                   [8] SEQUENCE OF Int32 -- EncryptionType -- in preference order --
+            // realm [2] Realm
+            // --Server's realm
+            // -- Also client's in AS-REQ --
+            allNodes.Add(AsnElt.MakeImplicit(AsnElt.CONTEXT, 2,
+                AsnElt.MakeSequence(
+                    AsnElt.MakeImplicit(AsnElt.UNIVERSAL, AsnElt.GeneralString,
+                        AsnElt.MakeString(AsnElt.IA5String, realm)))));
+            // sname [3] PrincipalName OPTIONAL
+            allNodes.Add(AsnElt.MakeImplicit(AsnElt.CONTEXT, 3,
+                sname.Encode()));
+            // from  [4] KerberosTime OPTIONAL
+            // till  [5] KerberosTime
+            allNodes.Add(AsnElt.MakeImplicit(AsnElt.CONTEXT, 5,
+                AsnElt.MakeSequence(
+                    AsnElt.MakeString(AsnElt.GeneralizedTime, till.ToString(Constants.UTCTimeFormat)))));
+            // rtime [6] KerberosTime
+            // nonce [7] UInt32
+            allNodes.Add(AsnElt.MakeImplicit(AsnElt.CONTEXT, 7,
+                AsnElt.MakeSequence(
+                    AsnElt.MakeInteger(nonce))));
+            // etype [8] SEQUENCE OF Int32 -- EncryptionType -- in preference order --
             List <AsnElt> etypeList = new List<AsnElt>();
             foreach (Interop.KERB_ETYPE etype in etypes) {
-                AsnElt etypeAsn = AsnElt.MakeInteger((UInt32)etype);
-                //AsnElt etypeSeq = AsnElt.Make(AsnElt.SEQUENCE, new[] { etypeAsn });
-                etypeList.Add(etypeAsn);
+                etypeList.Add(AsnElt.MakeInteger((UInt32)etype));
             }
-            AsnElt etypeSeq = AsnElt.MakeSequence(etypeList.ToArray());
-            AsnElt etypeSeqTotal1 = AsnElt.MakeSequence(etypeList.ToArray());
-            AsnElt etypeSeqTotal2 = AsnElt.MakeSequence(etypeSeqTotal1);
-            etypeSeqTotal2 = AsnElt.MakeImplicit(AsnElt.CONTEXT, 8, etypeSeqTotal2);
-            allNodes.Add(etypeSeqTotal2);
-
-            // addresses               [9] HostAddresses OPTIONAL
-
-            // enc-authorization-data  [10] EncryptedData OPTIONAL
-
-            // additional-tickets      [11] SEQUENCE OF Ticket OPTIONAL
-            if(additional_tickets.Count > 0) {
-                AsnElt ticketAsn = additional_tickets[0].Encode();
-                AsnElt ticketSeq = AsnElt.MakeSequence(new AsnElt[] { ticketAsn });
-                AsnElt ticketSeq2 = AsnElt.MakeSequence(new AsnElt[] { ticketSeq });
-                ticketSeq2 = AsnElt.MakeImplicit(AsnElt.CONTEXT, 11, ticketSeq2);
-                allNodes.Add(ticketSeq2);
+            allNodes.Add(AsnElt.MakeImplicit(AsnElt.CONTEXT, 8,
+                AsnElt.MakeSequence(
+                    AsnElt.MakeSequence(etypeList.ToArray()))));
+            // addresses [9] HostAddresses OPTIONAL
+            // enc-authorization-data [10] EncryptedData OPTIONAL
+            // additional-tickets [11] SEQUENCE OF Ticket OPTIONAL
+            if (0 < additional_tickets.Count) {
+                allNodes.Add(AsnElt.MakeImplicit(AsnElt.CONTEXT, 11,
+                    AsnElt.MakeSequence(
+                        AsnElt.MakeSequence(
+                            additional_tickets[0].Encode()))));
             }
             return AsnElt.MakeSequence(allNodes.ToArray());
         }

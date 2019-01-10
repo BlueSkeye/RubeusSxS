@@ -1,7 +1,6 @@
-﻿using Asn1;
-using System;
-using System.Collections.Generic;
-using System.IO;
+﻿using System;
+
+using Rubeus.Asn1;
 
 namespace Rubeus
 {
@@ -13,9 +12,10 @@ namespace Rubeus
     //        authenticator   [4] EncryptedData -- Authenticator
     //}
     
-    public class AP_REQ
+    public class AP_REQ : IAsnEncodable
     {
-        public AP_REQ(string crealm, string cname, Ticket providedTicket, byte[] clientKey, Interop.KERB_ETYPE etype, int keyUsageSpec = Interop.KRB_KEY_USAGE_TGS_REQ_PA_AUTHENTICATOR)
+        public AP_REQ(string crealm, string cname, Ticket providedTicket, byte[] clientKey,
+            Interop.KERB_ETYPE etype, int keyUsageSpec = Interop.KRB_KEY_USAGE_TGS_REQ_PA_AUTHENTICATOR)
         {
             pvno = 5;
             msg_type = 14;
@@ -36,58 +36,37 @@ namespace Rubeus
 
         public AsnElt Encode()
         {
-            // pvno            [0] INTEGER (5)
-            AsnElt pvnoASN = AsnElt.MakeInteger(pvno);
-            AsnElt pvnoSeq = AsnElt.MakeSequence(new[] { pvnoASN });
-            pvnoSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 0, pvnoSeq);
-
-
-            // msg-type        [1] INTEGER (14)
-            AsnElt msg_typeASN = AsnElt.MakeInteger(msg_type);
-            AsnElt msg_typeSeq = AsnElt.MakeSequence(new[] { msg_typeASN });
-            msg_typeSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 1, msg_typeSeq);
-
-
-            // ap-options      [2] APOptions
-            byte[] ap_optionsBytes = BitConverter.GetBytes(ap_options);
-            AsnElt ap_optionsASN = AsnElt.MakeBitString(ap_optionsBytes);
-            AsnElt ap_optionsSeq = AsnElt.MakeSequence(new[] { ap_optionsASN });
-            ap_optionsSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 2, ap_optionsSeq);
-
-            // ticket          [3] Ticket
-            AsnElt ticketASN = ticket.Encode();
-            AsnElt ticktSeq = AsnElt.MakeSequence(new[] { ticketASN });
-            ticktSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 3, ticktSeq);
-
-            // authenticator   [4] EncryptedData 
+            // authenticator [4] EncryptedData 
             if (null == key) {
                 Console.WriteLine("  [X] A key for the authenticator is needed to build an AP-REQ");
                 return null;
             }
-
-            byte[] authenticatorBytes = authenticator.Encode().Encode();
-
-            byte[] encBytes = Crypto.KerberosEncrypt(enctype, keyUsage, key, authenticatorBytes);
-
             // create the EncryptedData structure to hold the authenticator bytes
-            EncryptedData authenticatorEncryptedData = new EncryptedData();
-            authenticatorEncryptedData.etype = (int)enctype;
-            authenticatorEncryptedData.cipher = encBytes;
-
-            AsnElt authenticatorEncryptedDataASN = authenticatorEncryptedData.Encode();
-            AsnElt authenticatorEncryptedDataSeq = AsnElt.MakeSequence(new[] { authenticatorEncryptedDataASN });
-            authenticatorEncryptedDataSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 4, authenticatorEncryptedDataSeq);
-
-            // encode it all into a sequence
-            AsnElt[] total = new[] { pvnoSeq, msg_typeSeq, ap_optionsSeq, ticktSeq, authenticatorEncryptedDataSeq };
-            AsnElt seq = AsnElt.MakeSequence(total);
-
-            // AP-REQ          ::= [APPLICATION 14]
-            //  put it all together and tag it with 14
-            AsnElt totalSeq = AsnElt.MakeSequence(new[] { seq });
-            totalSeq = AsnElt.MakeImplicit(AsnElt.APPLICATION, 14, totalSeq);
-
-            return totalSeq;
+            EncryptedData authenticatorEncryptedData = new EncryptedData() {
+                etype = (int)enctype,
+                cipher = Crypto.KerberosEncrypt(enctype, keyUsage, key,
+                    authenticator.Encode().Encode())
+            };
+            // AP-REQ ::= [APPLICATION 14]
+            // put it all together and tag it with 14
+            return AsnElt.MakeImplicit(AsnElt.APPLICATION, 14,
+                AsnElt.MakeSequence(
+                    AsnElt.MakeSequence(
+                        // pvno [0] INTEGER (5)
+                        AsnElt.MakeImplicit(AsnElt.CONTEXT, 0,
+                            AsnElt.MakeSequence(AsnElt.MakeInteger(pvno))),
+                        // msg-type [1] INTEGER (14)
+                        AsnElt.MakeImplicit(AsnElt.CONTEXT, 1,
+                            AsnElt.MakeSequence(AsnElt.MakeInteger(msg_type))),
+                        // ap-options [2] APOptions
+                        AsnElt.MakeImplicit(AsnElt.CONTEXT, 2,
+                            AsnElt.MakeSequence(AsnElt.MakeBitString(BitConverter.GetBytes(ap_options)))),
+                        // ticket [3] Ticket
+                        AsnElt.MakeImplicit(AsnElt.CONTEXT, 3,
+                            AsnElt.MakeSequence(ticket.Encode())),
+                        AsnElt.MakeImplicit(AsnElt.CONTEXT, 4,
+                            AsnElt.MakeSequence(authenticatorEncryptedData.Encode()))
+                )));
         }
 
         public long pvno { get; set;}

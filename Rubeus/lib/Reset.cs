@@ -1,5 +1,6 @@
 ﻿using System;
-using Asn1;
+
+using Rubeus.Asn1;
 
 namespace Rubeus
 {

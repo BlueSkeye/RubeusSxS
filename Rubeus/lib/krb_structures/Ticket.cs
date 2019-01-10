@@ -1,10 +1,11 @@
 ﻿using System;
-using Asn1;
 using System.Text;
+
+using Rubeus.Asn1;
 
 namespace Rubeus
 {
-    public class Ticket
+    public class Ticket : IAsnEncodable
     {
         //Ticket::= [APPLICATION 1] SEQUENCE {
         //        tkt-vno[0] INTEGER(5),
@@ -38,35 +39,26 @@ namespace Rubeus
 
         public AsnElt Encode()
         {
-            // tkt-vno         [0] INTEGER (5)
-            AsnElt tkt_vnoAsn = AsnElt.MakeInteger(tkt_vno);
-            AsnElt tkt_vnoSeq = AsnElt.MakeSequence(new AsnElt[] { tkt_vnoAsn });
-            tkt_vnoSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 0, tkt_vnoSeq);
-
-
-            // realm           [1] Realm
-            AsnElt realmAsn = AsnElt.MakeString(AsnElt.IA5String, realm);
-            realmAsn = AsnElt.MakeImplicit(AsnElt.UNIVERSAL, AsnElt.GeneralString, realmAsn);
-            AsnElt realmAsnSeq = AsnElt.MakeSequence(realmAsn);
-            realmAsnSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 1, realmAsnSeq);
-
-
-            // sname           [2] PrincipalName
-            AsnElt snameAsn = sname.Encode();
-            snameAsn = AsnElt.MakeImplicit(AsnElt.CONTEXT, 2, snameAsn);
-
-
-            // enc-part        [3] EncryptedData -- EncTicketPart
-            AsnElt enc_partAsn = enc_part.Encode();
-            AsnElt enc_partSeq = AsnElt.MakeSequence(enc_partAsn);
-            enc_partSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 3, enc_partSeq);
-
-
-            AsnElt totalSeq = AsnElt.MakeSequence(new[] { tkt_vnoSeq, realmAsnSeq, snameAsn, enc_partSeq });
-            AsnElt totalSeq2 = AsnElt.MakeSequence(new[] { totalSeq });
-            totalSeq2 = AsnElt.MakeImplicit(AsnElt.APPLICATION, 1, totalSeq2);
-
-            return totalSeq2;
+            return AsnElt.MakeImplicit(AsnElt.APPLICATION, 1,
+                AsnElt.MakeSequence(
+                    AsnElt.MakeSequence(
+                        // tkt-vno [0] INTEGER (5)
+                        AsnElt.MakeImplicit(AsnElt.CONTEXT, 0,
+                            AsnElt.MakeSequence(
+                                AsnElt.MakeInteger(tkt_vno))),
+                        // realm [1] Realm
+                        AsnElt.MakeImplicit(AsnElt.CONTEXT, 1,
+                            AsnElt.MakeSequence(
+                                AsnElt.MakeImplicit(AsnElt.UNIVERSAL, AsnElt.GeneralString,
+                                    AsnElt.MakeString(AsnElt.IA5String, realm)))),
+                        // sname [2] PrincipalName
+                        AsnElt.MakeImplicit(AsnElt.CONTEXT, 2,
+                            sname.Encode()),
+                        // enc-part [3] EncryptedData -- EncTicketPart
+                        AsnElt.MakeImplicit(AsnElt.CONTEXT, 3,
+                            AsnElt.MakeSequence(
+                                enc_part.Encode()))
+                        )));
         }
 
         public int tkt_vno { get; set; }

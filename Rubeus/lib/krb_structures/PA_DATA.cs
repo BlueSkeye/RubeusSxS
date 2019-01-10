@@ -1,9 +1,10 @@
 ﻿using System;
-using Asn1;
+
+using Rubeus.Asn1;
 
 namespace Rubeus
 {
-    public class PA_DATA
+    public class PA_DATA : IAsnEncodable
     {
         //PA-DATA         ::= SEQUENCE {
         //        -- NOTE: first tag is [1], not [0]
@@ -81,11 +82,6 @@ namespace Rubeus
 
         public AsnElt Encode()
         {
-            // padata-type     [1] Int32
-            AsnElt typeElt = AsnElt.MakeInteger((long)type);
-            AsnElt nameTypeSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 1,
-                AsnElt.MakeSequence(typeElt));
-
             AsnElt paDataElt;
             switch (type) {
                 case Interop.PADATA_TYPE.PA_PAC_REQUEST:
@@ -120,7 +116,12 @@ namespace Rubeus
                 default:
                     return null;
             }
-            return AsnElt.MakeSequence(nameTypeSeq, paDataElt);
+            return AsnElt.MakeSequence(
+                // padata-type [1] Int32
+                AsnElt.MakeImplicit(AsnElt.CONTEXT, 1,
+                    AsnElt.MakeSequence(
+                        AsnElt.MakeInteger((long)type))),
+                paDataElt);
         }
 
         public Interop.PADATA_TYPE type { get; set; }

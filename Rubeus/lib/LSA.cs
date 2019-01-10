@@ -1,10 +1,10 @@
-﻿using Asn1;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
 
+using Rubeus.Asn1;
 using Rubeus.lib;
 
 namespace Rubeus

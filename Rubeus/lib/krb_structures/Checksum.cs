@@ -1,13 +1,14 @@
 ﻿using System;
-using Asn1;
+
+using Rubeus.Asn1;
 
 namespace Rubeus
 {
-    public class Checksum
+    public class Checksum : IAsnEncodable
     {
-        //Checksum        ::= SEQUENCE {
-        //        cksumtype       [0] Int32,
-        //        checksum        [1] OCTET STRING
+        //Checksum ::= SEQUENCE {
+        // cksumtype       [0] Int32,
+        // checksum        [1] OCTET STRING
         //}
 
         public Checksum(byte[] data)
@@ -36,19 +37,17 @@ namespace Rubeus
 
         public AsnElt Encode()
         {
-            // cksumtype       [0] Int32
-            AsnElt cksumtypeAsn = AsnElt.MakeInteger(cksumtype);
-            AsnElt cksumtypeSeq = AsnElt.MakeSequence(new AsnElt[] { cksumtypeAsn });
-            cksumtypeSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 0, cksumtypeSeq);
-
-            // checksum        [1] OCTET STRING
-            AsnElt checksumAsn = AsnElt.MakeBlob(checksum);
-            AsnElt checksumSeq = AsnElt.MakeSequence(new AsnElt[] { checksumAsn });
-            checksumSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 1, checksumSeq);
-
-            AsnElt totalSeq = AsnElt.MakeSequence(new AsnElt[] { cksumtypeSeq, checksumSeq });
-            AsnElt totalSeq2 = AsnElt.MakeSequence(new AsnElt[] { totalSeq });
-            return totalSeq2;
+            return AsnElt.MakeSequence(
+                AsnElt.MakeSequence(
+                    // cksumtype [0] Int32
+                    AsnElt.MakeImplicit(AsnElt.CONTEXT, 0,
+                        AsnElt.MakeSequence(
+                            AsnElt.MakeInteger(cksumtype))),
+                    // checksum [1] OCTET STRING
+                    AsnElt.MakeImplicit(AsnElt.CONTEXT, 1,
+                        AsnElt.MakeSequence(
+                            AsnElt.MakeBlob(checksum)))
+                    ));
         }
 
         public Int32 cksumtype { get; set; }

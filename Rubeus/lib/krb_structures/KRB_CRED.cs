@@ -1,10 +1,11 @@
 ﻿using System;
-using Asn1;
 using System.Collections.Generic;
+
+using Rubeus.Asn1;
 
 namespace Rubeus
 {
-    public class KRB_CRED
+    public class KRB_CRED : IAsnEncodable
     {
         //KRB-CRED::= [APPLICATION 22] SEQUENCE {
         //    pvno[0] INTEGER(5),

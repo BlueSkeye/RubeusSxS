@@ -1,6 +1,5 @@
-﻿using Asn1;
-using System;
-using System.Text;
+﻿
+using Rubeus.Asn1;
 
 namespace Rubeus
 {
@@ -9,7 +8,7 @@ namespace Rubeus
      //                           --If FALSE, and PAC present, remove PAC
      //}
 
-    public class KERB_PA_PAC_REQUEST
+    public class KERB_PA_PAC_REQUEST : IAsnEncodable
     {
         public KERB_PA_PAC_REQUEST()
         {
@@ -24,9 +23,9 @@ namespace Rubeus
 
         public AsnElt Encode()
         {
-            AsnElt ret = AsnElt.MakeBlob(new byte[] { 0x30, 0x05, 0xa0, 0x03, 0x01, 0x01,
-                (include_pac) ? (byte)0x01 : (byte)0x00 });
-            return AsnElt.MakeSequence(new AsnElt[] { ret });
+            return AsnElt.MakeSequence(
+                AsnElt.MakeBlob(new byte[] { 0x30, 0x05, 0xa0, 0x03, 0x01, 0x01,
+                    (include_pac) ? (byte)0x01 : (byte)0x00 }));
         }
         
         public bool include_pac { get; set; }

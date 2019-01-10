@@ -1,6 +1,6 @@
 using System;
 
-namespace Asn1
+namespace Rubeus.Asn1
 {
     public static class AsnIO
     {

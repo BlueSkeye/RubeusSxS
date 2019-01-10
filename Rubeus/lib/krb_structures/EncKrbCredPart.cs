@@ -1,6 +1,6 @@
-﻿using System;
-using Asn1;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+
+using Rubeus.Asn1;
 
 namespace Rubeus
 {
@@ -13,7 +13,7 @@ namespace Rubeus
     //        r-address       [5] HostAddress OPTIONAL
     //}
 
-    internal class EncKrbCredPart
+    internal class EncKrbCredPart : IAsnEncodable
     {
         public EncKrbCredPart()
         {
@@ -38,9 +38,10 @@ namespace Rubeus
             // TODO: handle multiple ticket-infos
             return AsnElt.MakeImplicit(AsnElt.APPLICATION, 29,
                 AsnElt.MakeSequence(
-                    AsnElt.MakeSequence(AsnElt.MakeImplicit(AsnElt.CONTEXT, 0,
-                        AsnElt.MakeSequence(
-                            AsnElt.MakeSequence(ticket_info[0].Encode()))))));
+                    AsnElt.MakeSequence(
+                        AsnElt.MakeImplicit(AsnElt.CONTEXT, 0,
+                            AsnElt.MakeSequence(
+                                AsnElt.MakeSequence(ticket_info[0].Encode()))))));
         }
 
         public List<KrbCredInfo> ticket_info { get; set; }

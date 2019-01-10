@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using Asn1;
+﻿using System.Collections.Generic;
+
+using Rubeus.Asn1;
 
 namespace Rubeus
 {
@@ -15,9 +13,10 @@ namespace Rubeus
        }
     */
 
-    public class PA_PAC_OPTIONS
+    public class PA_PAC_OPTIONS : IAsnEncodable
     {
         public byte[] kerberosFlags { get; set; }
+
         public PA_PAC_OPTIONS(bool claims, bool branch, bool fullDC, bool rbcd)
         {
             kerberosFlags = new byte[4] { 0, 0, 0, 0 };
@@ -31,12 +30,11 @@ namespace Rubeus
         public AsnElt Encode()
         {
             List<AsnElt> allNodes = new List<AsnElt>();
-            AsnElt kerberosFlagsAsn = AsnElt.MakeBitString(kerberosFlags);
-            kerberosFlagsAsn = AsnElt.MakeImplicit(AsnElt.UNIVERSAL, AsnElt.BIT_STRING, kerberosFlagsAsn);
-            AsnElt parent = AsnElt.MakeExplicit(0, kerberosFlagsAsn);
-            allNodes.Add(parent);
-            AsnElt seq = AsnElt.MakeSequence(allNodes.ToArray());
-            return seq;
+            allNodes.Add(
+                AsnElt.MakeExplicit(0,
+                    AsnElt.MakeImplicit(AsnElt.UNIVERSAL, AsnElt.BIT_STRING,
+                        AsnElt.MakeBitString(kerberosFlags))));
+            return AsnElt.MakeSequence(allNodes.ToArray());
         }
     }
 }

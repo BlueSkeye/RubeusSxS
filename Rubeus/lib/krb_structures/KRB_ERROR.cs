@@ -1,7 +1,8 @@
 ﻿using System;
-using Asn1;
 using System.Collections.Generic;
 using System.Text;
+
+using Rubeus.Asn1;
 
 namespace Rubeus
 {

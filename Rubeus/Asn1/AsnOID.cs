@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Asn1
+namespace Rubeus.Asn1
 {
     public class AsnOID
     {

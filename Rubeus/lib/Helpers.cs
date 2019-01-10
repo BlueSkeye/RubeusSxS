@@ -6,7 +6,7 @@ using System.Linq;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
 
-using Asn1;
+using Rubeus.Asn1;
 using Rubeus.lib;
 
 namespace Rubeus
