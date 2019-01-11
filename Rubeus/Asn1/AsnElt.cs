@@ -36,7 +36,7 @@ namespace Rubeus.Asn1
 
         private AsnElt(int tagClass, int tagValue)
         {
-            this.TagClass = tagClass;
+            this._tagClass = tagClass;
             this.TagValue = tagValue;
             return;
         }
@@ -51,11 +51,12 @@ namespace Rubeus.Asn1
         {
             get
             {
-                if (0 > _objectLength) {
+                if (objLen < 0)
+                {
                     int vlen = ValueLength;
-                    _objectLength = TagLength(TagValue) + LengthLength(vlen) + vlen;
+                    objLen = TagLength(TagValue) + LengthLength(vlen) + vlen;
                 }
-                return _objectLength;
+                return objLen;
             }
         }
 
@@ -77,31 +78,37 @@ namespace Rubeus.Asn1
         }
 
         /* The tag class for this element. */
-        public int TagClass { get; private set; }
+        public int TagClass
+        {
+            get { return _tagClass; }
+        }
 
         /* Get a string representation of the tag class and value. */
         public string TagString
         {
-            get { return TagToString(TagClass, TagValue); }
+            get { return TagToString(_tagClass, TagValue); }
         }
 
-        /// <summary>The tag value for this element.</summary>
-        internal int TagValue { get; private set; }
+        /* The tag value for this element. */
+        public int TagValue { get; set; }
 
         /* The value length. When the object is BER-encoded with an indefinite length, the value
          * length includes all the sub-objects but NOT the formal null-tag marker. */
         public int ValueLength
         {
-            get {
-                if (_valueLength < 0) {
-                    if (IsConstructed) {
+            get
+            {
+                if (valLen < 0)
+                {
+                    if (IsConstructed)
+                    {
                         int vlen = 0;
                         foreach (AsnElt a in EnumerateElements()) { vlen += a.EncodedLength; }
-                        _valueLength = vlen;
+                        valLen = vlen;
                     }
-                    else { _valueLength = _objectBuffer.Length; }
+                    else { valLen = objBuf.Length; }
                 }
-                return _valueLength;
+                return valLen;
             }
         }
 
@@ -114,7 +121,8 @@ namespace Rubeus.Asn1
         /* Check that this element is constructed. An exception is thrown if this is not the case.*/
         private void AssertConstructed()
         {
-            if (!IsConstructed) {
+            if (!IsConstructed)
+            {
                 throw new AsnException("not constructed");
             }
         }
@@ -122,7 +130,8 @@ namespace Rubeus.Asn1
         /* Check that this element is primitive. An exception is thrown if this is not the case. */
         private void AssertPrimitive()
         {
-            if (IsConstructed) {
+            if (IsConstructed)
+            {
                 throw new AsnException("not primitive");
             }
         }
@@ -132,7 +141,8 @@ namespace Rubeus.Asn1
         {
             AssertConstructed();
             int realLength = _sub.Length;
-            if (realLength != n) {
+            if (realLength != n)
+            {
                 throw new AsnException("wrong number of sub-elements: " + realLength + " (expected: " + n + ")");
             }
         }
@@ -142,7 +152,8 @@ namespace Rubeus.Asn1
         {
             AssertConstructed();
             int realLength = _sub.Length;
-            if (realLength > n) {
+            if (realLength > n)
+            {
                 throw new AsnException("too many sub-elements: " + realLength + " (maximum: " + n + ")");
             }
         }
@@ -152,7 +163,8 @@ namespace Rubeus.Asn1
         {
             AssertConstructed();
             int realLength = _sub.Length;
-            if (realLength < n) {
+            if (realLength < n)
+            {
                 throw new AsnException("not enough sub-elements: " + realLength + " (minimum: " + n + ")");
             }
         }
@@ -166,14 +178,15 @@ namespace Rubeus.Asn1
         /* Check that the tag has the specified class and value.*/
         public void CheckTag(int tc, int tv)
         {
-            if (TagClass != tc || TagValue != tv) {
+            if (_tagClass != tc || TagValue != tv)
+            {
                 throw new AsnException("unexpected tag: " + TagString);
             }
         }
 
         public IEnumerable<AsnElt> EnumerateElements()
         {
-            foreach(AsnElt item in _sub) { yield return item; }
+            foreach (AsnElt item in _sub) { yield return item; }
             yield break;
         }
 
@@ -182,7 +195,8 @@ namespace Rubeus.Asn1
         public AsnElt GetSub(int index)
         {
             AssertConstructed();
-            if ((0 > index) || (_sub.Length <= index)) {
+            if ((0 > index) || (_sub.Length <= index))
+            {
                 throw new AsnException("no such sub-object: n=" + index);
             }
             return _sub[index];
@@ -193,7 +207,8 @@ namespace Rubeus.Asn1
         {
             if (tv <= 0x1F) { return 1; }
             int result = 1;
-            while (tv > 0) {
+            while (tv > 0)
+            {
                 result++;
                 tv >>= 7;
             }
@@ -202,7 +217,8 @@ namespace Rubeus.Asn1
 
         private static string TagToString(int tc, int tv)
         {
-            switch (tc) {
+            switch (tc)
+            {
                 case UNIVERSAL:
                     break;
                 case APPLICATION:
@@ -215,7 +231,8 @@ namespace Rubeus.Asn1
                     return string.Format("INVALID:{0}/{1}", tc, tv);
             }
 
-            switch (tv) {
+            switch (tv)
+            {
                 case BOOLEAN: return "BOOLEAN";
                 case INTEGER: return "INTEGER";
                 case BIT_STRING: return "BIT_STRING";
@@ -254,7 +271,8 @@ namespace Rubeus.Asn1
         {
             if (len < 0x80) { return 1; }
             int result = 1;
-            while (len > 0) {
+            while (len > 0)
+            {
                 result++;
                 len >>= 8;
             }
@@ -289,7 +307,8 @@ namespace Rubeus.Asn1
             int tc, tv, valOff, valLen;
             bool cons;
             int objLen = Decode(buf, off, len, out tc, out tv, out cons, out valOff, out valLen);
-            if (exactLength && objLen != len) {
+            if (exactLength && objLen != len)
+            {
                 throw new AsnException("trailing garbage");
             }
             byte[] nbuf = new byte[objLen];
@@ -304,26 +323,30 @@ namespace Rubeus.Asn1
             int tc, tv, valOff, valLen, objLen;
             bool constructed;
             objLen = Decode(buf, off, len, out tc, out tv, out constructed, out valOff, out valLen);
-            AsnElt result = new AsnElt(tc, tv) {
-                _objectBuffer = buf,
-                _objectOffset = off,
-                _objectLength = objLen,
-                _valueOffset = valOff,
-                _valueLength = valLen,
-                _hasEncodedHeader = true
+            AsnElt result = new AsnElt(tc, tv)
+            {
+                objBuf = buf,
+                objOff = off,
+                objLen = objLen,
+                valOff = valOff,
+                valLen = valLen,
+                hasEncodedHeader = true
             };
-            if (constructed) {
+            if (constructed)
+            {
                 List<AsnElt> subs = new List<AsnElt>();
                 off = valOff;
                 int lim = valOff + valLen;
-                while (off < lim) {
+                while (off < lim)
+                {
                     AsnElt b = DecodeNoCopy(buf, off, lim - off);
-                    off += b._objectLength;
+                    off += b.objLen;
                     subs.Add(b);
                 }
                 result._sub = subs.ToArray();
             }
-            else {
+            else
+            {
                 result._sub = null;
             }
             return result;
@@ -344,9 +367,11 @@ namespace Rubeus.Asn1
             cons = (tv & 0x20) != 0;
             tc = tv >> 6;
             tv &= 0x1F;
-            if (tv == 0x1F) {
+            if (tv == 0x1F)
+            {
                 tv = 0;
-                while(true) {
+                while (true)
+                {
                     CheckOff(off, lim);
                     int c = buf[off++];
                     if (tv > 0xFFFFFF) { throw new AsnException("tag value overflow"); }
@@ -358,17 +383,20 @@ namespace Rubeus.Asn1
             /* Decode length. */
             CheckOff(off, lim);
             int vlen = buf[off++];
-            if (vlen == 0x80) {
+            if (vlen == 0x80)
+            {
                 /* Indefinite length. This is not strict DER, bu we allow it nonetheless; we must
                  * check that the value was tagged as constructed, though. */
                 vlen = -1;
                 if (!cons) { throw new AsnException("indefinite length" + " but not constructed"); }
             }
-            else if (vlen > 0x80) {
+            else if (vlen > 0x80)
+            {
                 int lenlen = vlen - 0x80;
                 CheckOff(off + lenlen - 1, lim);
                 vlen = 0;
-                while (lenlen-- > 0) {
+                while (lenlen-- > 0)
+                {
                     if (vlen > 0x7FFFFF) { throw new AsnException("length overflow"); }
                     vlen = (vlen << 8) + buf[off++];
                 }
@@ -378,12 +406,15 @@ namespace Rubeus.Asn1
             valOff = off;
 
             /* If length is indefinite then we must explore sub-objects to get the value length. */
-            if (vlen < 0) {
-                while(true) {
+            if (vlen < 0)
+            {
+                while (true)
+                {
                     int tc2, tv2, valOff2, valLen2;
                     bool cons2;
                     int slen = Decode(buf, off, lim - off, out tc2, out tv2, out cons2, out valOff2, out valLen2);
-                    if (tc2 == 0 && tv2 == 0) {
+                    if (tc2 == 0 && tv2 == 0)
+                    {
                         if (cons2 || valLen2 != 0) { throw new AsnException("invalid null tag"); }
                         valLen = off - valOff;
                         off += slen;
@@ -392,7 +423,8 @@ namespace Rubeus.Asn1
                     off += slen;
                 }
             }
-            else {
+            else
+            {
                 if (vlen > (lim - off)) { throw new AsnException("value overflow"); }
                 off += vlen;
                 valLen = off - valOff;
@@ -402,7 +434,8 @@ namespace Rubeus.Asn1
 
         private static void CheckOff(int offset, int limitExcluded)
         {
-            if (offset >= limitExcluded) {
+            if (offset >= limitExcluded)
+            {
                 throw new AsnException("offset overflow");
             }
         }
@@ -411,21 +444,27 @@ namespace Rubeus.Asn1
          * (first value byte has offset 0). */
         public int ValueByte(int off)
         {
-            if (off < 0) {
+            if (off < 0)
+            {
                 throw new AsnException("invalid value offset: " + off);
             }
-            if (_objectBuffer == null) {
+            if (objBuf == null)
+            {
                 int k = 0;
-                foreach (AsnElt a in this.EnumerateElements()) {
+                foreach (AsnElt a in this.EnumerateElements())
+                {
                     int slen = a.EncodedLength;
-                    if ((k + slen) > off) {
+                    if ((k + slen) > off)
+                    {
                         return a.ValueByte(off - k);
                     }
                 }
             }
-            else {
-                if (off < _valueLength) {
-                    return _objectBuffer[_valueOffset + off];
+            else
+            {
+                if (off < valLen)
+                {
+                    return objBuf[valOff + off];
                 }
             }
             throw new AsnException(String.Format("invalid value offset {0} (length = {1})",
@@ -449,44 +488,53 @@ namespace Rubeus.Asn1
         /* Encode this object into the provided array. Only bytes at offset between 'start'
          * (inclusive) and 'end' (exclusive) are actually written. The number of written bytes
          * is returned. Offsets are relative to the object start (first tag byte). */
-        private int Encode(int start, int end, byte[] dst, int dstOff)
+        int Encode(int start, int end, byte[] dst, int dstOff)
         {
             /* If the encoded value is already known, then we just dump it. */
-            if (_hasEncodedHeader) {
-                int from = _objectOffset + Math.Max(0, start);
-                int to = _objectOffset + Math.Min(_objectLength, end);
+            if (hasEncodedHeader)
+            {
+                int from = objOff + Math.Max(0, start);
+                int to = objOff + Math.Min(objLen, end);
                 int len = to - from;
-                if (len > 0) {
-                    Array.Copy(_objectBuffer, from, dst, dstOff, len);
+                if (len > 0)
+                {
+                    Array.Copy(objBuf, from, dst, dstOff, len);
                     return len;
                 }
                 return 0;
             }
             int off = 0;
             /* Encode tag. */
-            int fb = (TagClass << 6) + (IsConstructed ? 0x20 : 0x00);
-            if (TagValue < 0x1F) {
+            int fb = (_tagClass << 6) + (IsConstructed ? 0x20 : 0x00);
+            if (TagValue < 0x1F)
+            {
                 fb |= (TagValue & 0x1F);
-                if (start <= off && off < end) {
+                if (start <= off && off < end)
+                {
                     dst[dstOff++] = (byte)fb;
                 }
                 off++;
             }
-            else {
+            else
+            {
                 fb |= 0x1F;
-                if (start <= off && off < end) {
+                if (start <= off && off < end)
+                {
                     dst[dstOff++] = (byte)fb;
                 }
                 off++;
                 int k = 0;
                 for (int v = TagValue; v > 0; v >>= 7, k += 7) ;
-                while (k > 0) {
+                while (k > 0)
+                {
                     k -= 7;
                     int v = (TagValue >> k) & 0x7F;
-                    if (k != 0) {
+                    if (k != 0)
+                    {
                         v |= 0x80;
                     }
-                    if (start <= off && off < end) {
+                    if (start <= off && off < end)
+                    {
                         dst[dstOff++] = (byte)v;
                     }
                     off++;
@@ -495,22 +543,28 @@ namespace Rubeus.Asn1
 
             /* Encode length. */
             int vlen = ValueLength;
-            if (vlen < 0x80) {
-                if (start <= off && off < end) {
+            if (vlen < 0x80)
+            {
+                if (start <= off && off < end)
+                {
                     dst[dstOff++] = (byte)vlen;
                 }
                 off++;
             }
-            else {
+            else
+            {
                 int k = 0;
                 for (int v = vlen; v > 0; v >>= 8, k += 8) ;
-                if (start <= off && off < end) {
+                if (start <= off && off < end)
+                {
                     dst[dstOff++] = (byte)(0x80 + (k >> 3));
                 }
                 off++;
-                while (k > 0) {
+                while (k > 0)
+                {
                     k -= 8;
-                    if (start <= off && off < end) {
+                    if (start <= off && off < end)
+                    {
                         dst[dstOff++] = (byte)(vlen >> k);
                     }
                     off++;
@@ -528,23 +582,27 @@ namespace Rubeus.Asn1
         /* Encode the value into the provided buffer. Only value bytes at offsets between 'start'
          * (inclusive) and 'end' (exclusive) are written. Actual number of written bytes is
          * returned. Offsets are relative to the start of the value. */
-        private int EncodeValue(int start, int end, byte[] dst, int dstOff)
+        int EncodeValue(int start, int end, byte[] dst, int dstOff)
         {
             int orig = dstOff;
-            if (_objectBuffer == null) {
+            if (objBuf == null)
+            {
                 int k = 0;
-                foreach (AsnElt a in this.EnumerateElements()) {
+                foreach (AsnElt a in this.EnumerateElements())
+                {
                     int slen = a.EncodedLength;
                     dstOff += a.Encode(start - k, end - k, dst, dstOff);
                     k += slen;
                 }
             }
-            else {
+            else
+            {
                 int from = Math.Max(0, start);
-                int to = Math.Min(_valueLength, end);
+                int to = Math.Min(valLen, end);
                 int len = to - from;
-                if (len > 0) {
-                    Array.Copy(_objectBuffer, _valueOffset + from, dst, dstOff, len);
+                if (len > 0)
+                {
+                    Array.Copy(objBuf, valOff + from, dst, dstOff, len);
                     dstOff += len;
                 }
             }
@@ -557,7 +615,8 @@ namespace Rubeus.Asn1
         public void CopyValueChunk(int off, int len, byte[] dst, int dstOff)
         {
             int vlen = ValueLength;
-            if (off < 0 || len < 0 || len > (vlen - off)) {
+            if (off < 0 || len < 0 || len > (vlen - off))
+            {
                 throw new AsnException(String.Format(
                     "invalid value window {0}:{1}"
                     + " (value length = {2})", off, len, vlen));
@@ -580,20 +639,22 @@ namespace Rubeus.Asn1
         }
 
         /* Get the value. This may return a shared buffer, that MUST NOT be modified. */
-        private byte[] GetValue(out int off, out int len)
+        byte[] GetValue(out int off, out int len)
         {
-            if (_objectBuffer == null) {
+            if (objBuf == null)
+            {
                 /* We can modify objBuf because CopyValue() called ValueLength, thus valLen has
                  * been filled. */
-                _objectBuffer = CopyValue();
+                objBuf = CopyValue();
                 off = 0;
-                len = _objectBuffer.Length;
+                len = objBuf.Length;
             }
-            else {
-                off = _valueOffset;
-                len = _valueLength;
+            else
+            {
+                off = valOff;
+                len = valLen;
             }
-            return _objectBuffer;
+            return objBuf;
         }
 
         /* Interpret the value as a BOOLEAN. */
@@ -601,7 +662,8 @@ namespace Rubeus.Asn1
         {
             AssertPrimitive();
             int vlen = ValueLength;
-            if (vlen != 1) {
+            if (vlen != 1)
+            {
                 throw new AsnException(String.Format("invalid BOOLEAN (length = {0})", vlen));
             }
             return ValueByte(0) != 0;
@@ -613,24 +675,31 @@ namespace Rubeus.Asn1
         {
             AssertPrimitive();
             int vlen = ValueLength;
-            if (vlen == 0) {
+            if (vlen == 0)
+            {
                 throw new AsnException("invalid INTEGER (length = 0)");
             }
             int v = ValueByte(0);
             long x;
-            if ((v & 0x80) != 0) {
+            if ((v & 0x80) != 0)
+            {
                 x = -1;
-                for (int k = 0; k < vlen; k++) {
-                    if (x < ((-1L) << 55)) {
+                for (int k = 0; k < vlen; k++)
+                {
+                    if (x < ((-1L) << 55))
+                    {
                         throw new AsnException("integer overflow (negative)");
                     }
                     x = (x << 8) + (long)ValueByte(k);
                 }
             }
-            else {
+            else
+            {
                 x = 0;
-                for (int k = 0; k < vlen; k++) {
-                    if (x >= (1L << 55)) {
+                for (int k = 0; k < vlen; k++)
+                {
+                    if (x >= (1L << 55))
+                    {
                         throw new AsnException("integer overflow (positive)");
                     }
                     x = (x << 8) + (long)ValueByte(k);
@@ -644,7 +713,8 @@ namespace Rubeus.Asn1
         public long GetInteger(long min, long max)
         {
             long v = GetInteger();
-            if (v < min || v > max) {
+            if (v < min || v > max)
+            {
                 throw new AsnException("integer out of allowed range");
             }
             return v;
@@ -658,29 +728,35 @@ namespace Rubeus.Asn1
         {
             AssertPrimitive();
             int vlen = ValueLength;
-            if (vlen == 0) {
+            if (vlen == 0)
+            {
                 throw new AsnException("invalid INTEGER (length = 0)");
             }
             StringBuilder sb = new StringBuilder();
             byte[] tmp = CopyValue();
-            if (tmp[0] >= 0x80) {
+            if (tmp[0] >= 0x80)
+            {
                 sb.Append('-');
                 int cc = 1;
-                for (int i = tmp.Length - 1; i >= 0; i--) {
+                for (int i = tmp.Length - 1; i >= 0; i--)
+                {
                     int v = ((~tmp[i]) & 0xFF) + cc;
                     tmp[i] = (byte)v;
                     cc = v >> 8;
                 }
             }
             int k = 0;
-            while (k < tmp.Length && tmp[k] == 0) {
+            while (k < tmp.Length && tmp[k] == 0)
+            {
                 k++;
             }
-            if (k == tmp.Length) {
+            if (k == tmp.Length)
+            {
                 return "0x00";
             }
             sb.Append("0x");
-            while (k < tmp.Length) {
+            while (k < tmp.Length)
+            {
                 sb.AppendFormat("{0:X2}", tmp[k++]);
             }
             return sb.ToString();
@@ -702,15 +778,18 @@ namespace Rubeus.Asn1
          * constructed values and performs the reassembly. */
         public int GetOctetString(byte[] dst, int off)
         {
-            if (IsConstructed) {
+            if (IsConstructed)
+            {
                 int orig = off;
-                foreach (AsnElt ae in this.EnumerateElements()) {
+                foreach (AsnElt ae in this.EnumerateElements())
+                {
                     ae.CheckTag(AsnElt.OCTET_STRING);
                     off += ae.GetOctetString(dst, off);
                 }
                 return off - orig;
             }
-            if (dst != null) {
+            if (dst != null)
+            {
                 return CopyValue(dst, off);
             }
             return ValueLength;
@@ -730,16 +809,19 @@ namespace Rubeus.Asn1
         {
             AssertPrimitive();
             int vlen = ValueLength;
-            if (vlen == 0) {
+            if (vlen == 0)
+            {
                 throw new AsnException("invalid BIT STRING (length = 0)");
             }
             int fb = ValueByte(0);
-            if (fb > 7 || (vlen == 1 && fb != 0)) {
+            if (fb > 7 || (vlen == 1 && fb != 0))
+            {
                 throw new AsnException(String.Format("invalid BIT STRING (start = 0x{0:X2})", fb));
             }
             byte[] r = new byte[vlen - 1];
             CopyValueChunk(1, vlen - 1, r, 0);
-            if (vlen > 1) {
+            if (vlen > 1)
+            {
                 r[r.Length - 1] &= (byte)(0xFF << fb);
             }
             bitLength = (r.Length << 3) - fb;
@@ -750,22 +832,24 @@ namespace Rubeus.Asn1
         public void CheckNull()
         {
             AssertPrimitive();
-            if (ValueLength != 0) {
+            if (ValueLength != 0)
+            {
                 throw new AsnException(String.Format("invalid NULL (length = {0})", ValueLength));
             }
         }
 
-        /// <summary>Interpret the value as an OBJECT IDENTIFIER, and return it (in decimal-dotted
-        /// string format).</summary>
-        /// <returns></returns>
-        internal string GetOID()
+        /* Interpret the value as an OBJECT IDENTIFIER, and return it (in decimal-dotted string
+         * format). */
+        public string GetOID()
         {
             AssertPrimitive();
-            if (_valueLength == 0) {
+            if (valLen == 0)
+            {
                 throw new AsnException("zero-length OID");
             }
-            int v = _objectBuffer[_valueOffset];
-            if (v >= 120) {
+            int v = objBuf[valOff];
+            if (v >= 120)
+            {
                 throw new AsnException("invalid OID: first byte = " + v);
             }
             StringBuilder sb = new StringBuilder();
@@ -774,79 +858,83 @@ namespace Rubeus.Asn1
             sb.Append(v % 40);
             long acc = 0;
             bool uv = false;
-            for (int i = 1; i < _valueLength; i++){
-                v = _objectBuffer[_valueOffset + i];
-                if ((acc >> 56) != 0){
+            for (int i = 1; i < valLen; i++)
+            {
+                v = objBuf[valOff + i];
+                if ((acc >> 56) != 0)
+                {
                     throw new AsnException("invalid OID: integer overflow");
                 }
                 acc = (acc << 7) + (long)(v & 0x7F);
-                if ((v & 0x80) == 0) {
+                if ((v & 0x80) == 0)
+                {
                     sb.Append('.');
                     sb.Append(acc);
                     acc = 0;
                     uv = false;
                 }
-                else {
+                else
+                {
                     uv = true;
                 }
             }
-            if (uv) {
+            if (uv)
+            {
                 throw new AsnException("invalid OID: truncated");
             }
             return sb.ToString();
         }
 
-        /// <summary>Get the object value as a string. The string type is provided (universal tag
-        /// value). Supported string types include NumericString, PrintableString, IA5String,
-        /// TeletexString (interpreted as ISO-8859-1), UTF8String, BMPString and UniversalString;
-        /// the "time types" (UTCTime and GeneralizedTime) are also supported, though, in their case,
-        /// the internal contents are not checked (they are decoded as PrintableString).</summary>
-        /// <param name="type"></param>
-        /// <returns></returns>
-        private string GetString(int type)
+        /* Get the object value as a string. The string type is inferred from the tag. */
+        public string GetString()
+        {
+            if (_tagClass != UNIVERSAL)
+            {
+                throw new AsnException(String.Format("cannot infer string type: {0}:{1}", _tagClass, TagValue));
+            }
+            return GetString(TagValue);
+        }
+
+        /* Get the object value as a string. The string type is provided (universal tag value).
+         * Supported string types include NumericString, PrintableString, IA5String, TeletexString
+         * (interpreted as ISO-8859-1), UTF8String, BMPString and UniversalString; the "time types"
+         * (UTCTime and GeneralizedTime) are also supported, though, in their case, the internal
+         * contents are not checked (they are decoded as PrintableString). */
+        public string GetString(int type)
         {
             AssertPrimitive();
-            switch (type) {
+            switch (type)
+            {
                 case NumericString:
                 case PrintableString:
                 case IA5String:
                 case TeletexString:
                 case UTCTime:
                 case GeneralizedTime:
-                    return DecodeMono(_objectBuffer, _valueOffset, _valueLength, type);
+                    return DecodeMono(objBuf, valOff, valLen, type);
                 case UTF8String:
-                    return DecodeUTF8(_objectBuffer, _valueOffset, _valueLength);
+                    return DecodeUTF8(objBuf, valOff, valLen);
                 case BMPString:
-                    return DecodeUTF16(_objectBuffer, _valueOffset, _valueLength);
+                    return DecodeUTF16(objBuf, valOff, valLen);
                 case UniversalString:
-                    return DecodeUTF32(_objectBuffer, _valueOffset, _valueLength);
+                    return DecodeUTF32(objBuf, valOff, valLen);
                 default:
                     throw new AsnException("unsupported string type: " + type);
             }
         }
 
-        /// <summary></summary>
-        /// <param name="buf"></param>
-        /// <param name="off"></param>
-        /// <param name="len"></param>
-        /// <param name="type"></param>
-        /// <returns></returns>
-        private static string DecodeMono(byte[] buf, int off, int len, int type)
+        static string DecodeMono(byte[] buf, int off, int len, int type)
         {
             char[] tc = new char[len];
-            for (int i = 0; i < len; i++) {
+            for (int i = 0; i < len; i++)
+            {
                 tc[i] = (char)buf[off + i];
             }
             VerifyChars(tc, type);
             return new string(tc);
         }
 
-        /// <summary></summary>
-        /// <param name="buf"></param>
-        /// <param name="off"></param>
-        /// <param name="len"></param>
-        /// <returns></returns>
-        private static string DecodeUTF8(byte[] buf, int off, int len)
+        static string DecodeUTF8(byte[] buf, int off, int len)
         {
             /* Skip BOM.*/
             if (len >= 3 && buf[off] == 0xEF
@@ -856,63 +944,80 @@ namespace Rubeus.Asn1
                 len -= 3;
             }
             char[] tc = null;
-            for (int k = 0; k < 2; k++) {
+            for (int k = 0; k < 2; k++)
+            {
                 int tcOff = 0;
-                for (int i = 0; i < len; i++) {
+                for (int i = 0; i < len; i++)
+                {
                     int c = buf[off + i];
                     int e;
-                    if (c < 0x80) {
+                    if (c < 0x80)
+                    {
                         e = 0;
                     }
-                    else if (c < 0xC0) {
+                    else if (c < 0xC0)
+                    {
                         throw BadByte(c, UTF8String);
                     }
-                    else if (c < 0xE0) {
+                    else if (c < 0xE0)
+                    {
                         c &= 0x1F;
                         e = 1;
                     }
-                    else if (c < 0xF0) {
+                    else if (c < 0xF0)
+                    {
                         c &= 0x0F;
                         e = 2;
                     }
-                    else if (c < 0xF8) {
+                    else if (c < 0xF8)
+                    {
                         c &= 0x07;
                         e = 3;
                     }
-                    else {
+                    else
+                    {
                         throw BadByte(c, UTF8String);
                     }
-                    while (e-- > 0) {
-                        if (++i >= len) {
+                    while (e-- > 0)
+                    {
+                        if (++i >= len)
+                        {
                             throw new AsnException("invalid UTF-8 string");
                         }
                         int d = buf[off + i];
-                        if (d < 0x80 || d > 0xBF) {
+                        if (d < 0x80 || d > 0xBF)
+                        {
                             throw BadByte(d, UTF8String);
                         }
                         c = (c << 6) + (d & 0x3F);
                     }
-                    if (c > 0x10FFFF) {
+                    if (c > 0x10FFFF)
+                    {
                         throw BadChar(c, UTF8String);
                     }
-                    if (c > 0xFFFF) {
+                    if (c > 0xFFFF)
+                    {
                         c -= 0x10000;
                         int hi = 0xD800 + (c >> 10);
                         int lo = 0xDC00 + (c & 0x3FF);
-                        if (tc != null) {
+                        if (tc != null)
+                        {
                             tc[tcOff] = (char)hi;
                             tc[tcOff + 1] = (char)lo;
                         }
                         tcOff += 2;
                     }
-                    else {
-                        if (tc != null) {
+                    else
+                    {
+                        if (tc != null)
+                        {
                             tc[tcOff] = (char)c;
                         }
                         tcOff++;
                     }
                 }
-                if (tc == null) {
+                if (tc == null)
+                {
                     tc = new char[tcOff];
                 }
             }
@@ -920,40 +1025,42 @@ namespace Rubeus.Asn1
             return new string(tc);
         }
 
-        /// <summary></summary>
-        /// <param name="buf"></param>
-        /// <param name="off"></param>
-        /// <param name="len"></param>
-        /// <returns></returns>
-        private static string DecodeUTF16(byte[] buf, int off, int len)
+        static string DecodeUTF16(byte[] buf, int off, int len)
         {
-            if ((len & 1) != 0) {
+            if ((len & 1) != 0)
+            {
                 throw new AsnException("invalid UTF-16 string: length = " + len);
             }
             len >>= 1;
-            if (len == 0) {
+            if (len == 0)
+            {
                 return "";
             }
             bool be = true;
             int hi = buf[off];
             int lo = buf[off + 1];
-            if (hi == 0xFE && lo == 0xFF) {
+            if (hi == 0xFE && lo == 0xFF)
+            {
                 off += 2;
                 len--;
             }
-            else if (hi == 0xFF && lo == 0xFE) {
+            else if (hi == 0xFF && lo == 0xFE)
+            {
                 off += 2;
                 len--;
                 be = false;
             }
             char[] tc = new char[len];
-            for (int i = 0; i < len; i++) {
+            for (int i = 0; i < len; i++)
+            {
                 int b0 = buf[off++];
                 int b1 = buf[off++];
-                if (be) {
+                if (be)
+                {
                     tc[i] = (char)((b0 << 8) + b1);
                 }
-                else {
+                else
+                {
                     tc[i] = (char)((b1 << 8) + b0);
                 }
             }
@@ -961,18 +1068,15 @@ namespace Rubeus.Asn1
             return new string(tc);
         }
 
-        /// <summary></summary>
-        /// <param name="buf"></param>
-        /// <param name="off"></param>
-        /// <param name="len"></param>
-        /// <returns></returns>
-        private static string DecodeUTF32(byte[] buf, int off, int len)
+        static string DecodeUTF32(byte[] buf, int off, int len)
         {
-            if ((len & 3) != 0) {
+            if ((len & 3) != 0)
+            {
                 throw new AsnException("invalid UTF-32 string: length = " + len);
             }
             len >>= 2;
-            if (len == 0) {
+            if (len == 0)
+            {
                 return "";
             }
             bool be = true;
@@ -995,41 +1099,51 @@ namespace Rubeus.Asn1
             }
 
             char[] tc = null;
-            for (int k = 0; k < 2; k++) {
+            for (int k = 0; k < 2; k++)
+            {
                 int tcOff = 0;
-                for (int i = 0; i < len; i++) {
+                for (int i = 0; i < len; i++)
+                {
                     uint b0 = buf[off + 0];
                     uint b1 = buf[off + 1];
                     uint b2 = buf[off + 2];
                     uint b3 = buf[off + 3];
                     uint c;
-                    if (be) {
+                    if (be)
+                    {
                         c = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
                     }
-                    else {
+                    else
+                    {
                         c = (b3 << 24) | (b2 << 16) | (b1 << 8) | b0;
                     }
-                    if (c > 0x10FFFF) {
+                    if (c > 0x10FFFF)
+                    {
                         throw BadChar((int)c, UniversalString);
                     }
-                    if (c > 0xFFFF) {
+                    if (c > 0xFFFF)
+                    {
                         c -= 0x10000;
                         int hi = 0xD800 + (int)(c >> 10);
                         int lo = 0xDC00 + (int)(c & 0x3FF);
-                        if (tc != null) {
+                        if (tc != null)
+                        {
                             tc[tcOff] = (char)hi;
                             tc[tcOff + 1] = (char)lo;
                         }
                         tcOff += 2;
                     }
-                    else {
-                        if (tc != null) {
+                    else
+                    {
+                        if (tc != null)
+                        {
                             tc[tcOff] = (char)c;
                         }
                         tcOff++;
                     }
                 }
-                if (tc == null) {
+                if (tc == null)
+                {
                     tc = new char[tcOff];
                 }
             }
@@ -1037,15 +1151,15 @@ namespace Rubeus.Asn1
             return new string(tc);
         }
 
-        /// <summary></summary>
-        /// <param name="tc"></param>
-        /// <param name="type"></param>
-        private static void VerifyChars(char[] tc, int type)
+        static void VerifyChars(char[] tc, int type)
         {
-            switch (type) {
+            switch (type)
+            {
                 case NumericString:
-                    foreach (char c in tc) {
-                        if (!IsNum(c)) {
+                    foreach (char c in tc)
+                    {
+                        if (!IsNum(c))
+                        {
                             throw BadChar(c, type);
                         }
                     }
@@ -1053,22 +1167,28 @@ namespace Rubeus.Asn1
                 case PrintableString:
                 case UTCTime:
                 case GeneralizedTime:
-                    foreach (char c in tc) {
-                        if (!IsPrintable(c)) {
+                    foreach (char c in tc)
+                    {
+                        if (!IsPrintable(c))
+                        {
                             throw BadChar(c, type);
                         }
                     }
                     return;
                 case IA5String:
-                    foreach (char c in tc) {
-                        if (!IsIA5(c)) {
+                    foreach (char c in tc)
+                    {
+                        if (!IsIA5(c))
+                        {
                             throw BadChar(c, type);
                         }
                     }
                     return;
                 case TeletexString:
-                    foreach (char c in tc) {
-                        if (!IsLatin1(c)) {
+                    foreach (char c in tc)
+                    {
+                        if (!IsLatin1(c))
+                        {
                             throw BadChar(c, type);
                         }
                     }
@@ -1076,59 +1196,65 @@ namespace Rubeus.Asn1
             }
 
             /* For Unicode string types (UTF-8, BMP...). */
-            for (int i = 0; i < tc.Length; i++) {
+            for (int i = 0; i < tc.Length; i++)
+            {
                 int c = tc[i];
-                if (c >= 0xFDD0 && c <= 0xFDEF) {
+                if (c >= 0xFDD0 && c <= 0xFDEF)
+                {
                     throw BadChar(c, type);
                 }
-                if (c == 0xFFFE || c == 0xFFFF) {
+                if (c == 0xFFFE || c == 0xFFFF)
+                {
                     throw BadChar(c, type);
                 }
-                if (c < 0xD800 || c > 0xDFFF) {
+                if (c < 0xD800 || c > 0xDFFF)
+                {
                     continue;
                 }
-                if (c > 0xDBFF) {
+                if (c > 0xDBFF)
+                {
                     throw BadChar(c, type);
                 }
                 int hi = c & 0x3FF;
-                if (++i >= tc.Length) {
+                if (++i >= tc.Length)
+                {
                     throw BadChar(c, type);
                 }
                 c = tc[i];
-                if (c < 0xDC00 || c > 0xDFFF) {
+                if (c < 0xDC00 || c > 0xDFFF)
+                {
                     throw BadChar(c, type);
                 }
                 int lo = c & 0x3FF;
                 c = 0x10000 + lo + (hi << 10);
-                if ((c & 0xFFFE) == 0xFFFE) {
+                if ((c & 0xFFFE) == 0xFFFE)
+                {
                     throw BadChar(c, type);
                 }
             }
         }
 
-        /// <summary></summary>
-        /// <param name="c"></param>
-        /// <returns></returns>
-        private static bool IsNum(int c)
+        static bool IsNum(int c)
         {
             return c == ' ' || (c >= '0' && c <= '9');
         }
 
-        /// <summary></summary>
-        /// <param name="c"></param>
-        /// <returns></returns>
-        private static bool IsPrintable(int c)
+        internal static bool IsPrintable(int c)
         {
-            if (c >= 'A' && c <= 'Z') {
+            if (c >= 'A' && c <= 'Z')
+            {
                 return true;
             }
-            if (c >= 'a' && c <= 'z') {
+            if (c >= 'a' && c <= 'z')
+            {
                 return true;
             }
-            if (c >= '0' && c <= '9') {
+            if (c >= '0' && c <= '9')
+            {
                 return true;
             }
-            switch (c) {
+            switch (c)
+            {
                 case ' ':
                 case '(':
                 case ')':
@@ -1147,61 +1273,54 @@ namespace Rubeus.Asn1
             }
         }
 
-        /// <summary></summary>
-        /// <param name="c"></param>
-        /// <returns></returns>
-        private static bool IsIA5(int c)
+        static bool IsIA5(int c)
         {
-            return (sbyte.MaxValue >= c);
+            return c < 128;
         }
 
-        /// <summary></summary>
-        /// <param name="c"></param>
-        /// <returns></returns>
-        private static bool IsLatin1(int c)
+        static bool IsLatin1(int c)
         {
-            return (byte.MaxValue >= c);
+            return c < 256;
         }
 
-        /// <summary></summary>
-        /// <param name="c"></param>
-        /// <param name="type"></param>
-        /// <returns></returns>
-        private static AsnException BadByte(int c, int type)
+        static AsnException BadByte(int c, int type)
         {
             return new AsnException(String.Format(
                 "unexpected byte 0x{0:X2} in string of type {1}", c, type));
         }
 
-        /// <summary></summary>
-        /// <param name="c"></param>
-        /// <param name="type"></param>
-        /// <returns></returns>
-        private static AsnException BadChar(int c, int type)
+        static AsnException BadChar(int c, int type)
         {
-            return new AsnException(string.Format(
+            return new AsnException(String.Format(
                 "unexpected character U+{0:X4} in string of type {1}", c, type));
         }
 
-        /// <summary>Decode the value as a date/time. Returned object is in UTC. Type of date is
-        /// inferred from the tag value.</summary>
-        /// <returns></returns>
-        internal DateTime GetTime()
+        /* Decode the value as a date/time. Returned object is in UTC. Type of date is inferred7
+         * from the tag value. */
+        public DateTime GetTime()
         {
-            int type = TagValue;
-            if (TagClass != UNIVERSAL) {
-                throw new AsnException(string.Format("cannot infer date type: {0}:{1}",
-                    TagClass, type));
+            if (_tagClass != UNIVERSAL)
+            {
+                throw new AsnException(String.Format("cannot infer date type: {0}:{1}", _tagClass, TagValue));
             }
+            return GetTime(TagValue);
+        }
+
+        /* Decode the value as a date/time. Returned object is in UTC. The time string type is
+         * provided as parameter (UTCTime or GeneralizedTime). */
+        public DateTime GetTime(int type)
+        {
             bool isGen = false;
-            switch (type) {
+            switch (type)
+            {
                 case UTCTime:
                     break;
                 case GeneralizedTime:
                     isGen = true;
                     break;
                 default:
-                    throw new AsnException("unsupported date type: " + type);
+                    throw new AsnException(
+                        "unsupported date type: " + type);
             }
             string s = GetString(type);
             string orig = s;
@@ -1214,7 +1333,8 @@ namespace Rubeus.Asn1
              *
              * Differences between the two types:
              * -- UTCTime encodes year over two digits; GeneralizedTime
-             * uses four digits. UTCTime years map to 1950..2049 (00 is 2000).
+             * uses four digits. UTCTime years map to 1950..2049 (00 is
+             * 2000).
              * -- Seconds are optional with UTCTime, mandatory with
              * GeneralizedTime.
              * -- GeneralizedTime can have fractional seconds (optional).
@@ -1232,11 +1352,14 @@ namespace Rubeus.Asn1
              * Gregorian calendar, even for dates before 1589. Year 0 is not supported. */
 
             /* Check characters. */
-            foreach (char c in s) {
-                if (c >= '0' && c <= '9') {
+            foreach (char c in s)
+            {
+                if (c >= '0' && c <= '9')
+                {
                     continue;
                 }
-                if (c == '.' || c == '+' || c == '-' || c == 'Z') {
+                if (c == '.' || c == '+' || c == '-' || c == 'Z')
+                {
                     continue;
                 }
                 throw BadTime(type, orig);
@@ -1249,48 +1372,60 @@ namespace Rubeus.Asn1
             int tzMinutes = 0;
             bool negZ = false;
             bool noTZ = false;
-            if (s.EndsWith("Z")) {
+            if (s.EndsWith("Z"))
+            {
                 s = s.Substring(0, s.Length - 1);
             }
-            else {
+            else
+            {
                 int j = s.IndexOf('+');
-                if (j < 0) {
+                if (j < 0)
+                {
                     j = s.IndexOf('-');
                     negZ = true;
                 }
-                if (j < 0) {
+                if (j < 0)
+                {
                     noTZ = true;
                 }
-                else {
+                else
+                {
                     string t = s.Substring(j + 1);
                     s = s.Substring(0, j);
-                    if (t.Length != 4) {
+                    if (t.Length != 4)
+                    {
                         throw BadTime(type, orig);
                     }
                     tzHours = Dec2(t, 0, ref good);
                     tzMinutes = Dec2(t, 2, ref good);
-                    if (tzHours < 0 || tzHours > 23 || tzMinutes < 0 || tzMinutes > 59) {
+                    if (tzHours < 0 || tzHours > 23 || tzMinutes < 0 || tzMinutes > 59)
+                    {
                         throw BadTime(type, orig);
                     }
                 }
             }
 
             /* Lack of time zone is allowed only for GeneralizedTime. */
-            if (noTZ && !isGen) {
+            if (noTZ && !isGen)
+            {
                 throw BadTime(type, orig);
             }
 
             /* Parse the date elements. */
-            if (s.Length < 4) {
+            if (s.Length < 4)
+            {
                 throw BadTime(type, orig);
             }
             int year = Dec2(s, 0, ref good);
-            if (isGen) {
+            if (isGen)
+            {
                 year = year * 100 + Dec2(s, 2, ref good);
                 s = s.Substring(4);
             }
-            else {
-                if (year < 50) {
+            else
+            {
+                if (year < 50)
+                {
                     year += 100;
                 }
                 year += 1900;
@@ -1302,12 +1437,16 @@ namespace Rubeus.Asn1
             int minute = Dec2(s, 6, ref good);
             int second = 0;
             int millisecond = 0;
-            if (isGen) {
+            if (isGen)
+            {
                 second = Dec2(s, 8, ref good);
-                if (s.Length >= 12 && s[10] == '.') {
+                if (s.Length >= 12 && s[10] == '.')
+                {
                     s = s.Substring(11);
-                    foreach (char c in s) {
-                        if (c < '0' || c > '9') {
+                    foreach (char c in s)
+                    {
+                        if (c < '0' || c > '9')
+                        {
                             good = false;
                             break;
                         }
@@ -1315,12 +1454,15 @@ namespace Rubeus.Asn1
                     s += "0000";
                     millisecond = 10 * Dec2(s, 0, ref good) + Dec2(s, 2, ref good) / 10;
                 }
-                else if (s.Length != 10) {
+                else if (s.Length != 10)
+                {
                     good = false;
                 }
             }
-            else {
-                switch (s.Length) {
+            else
+            {
+                switch (s.Length)
+                {
                     case 8:
                         break;
                     case 10:
@@ -1332,230 +1474,481 @@ namespace Rubeus.Asn1
             }
 
             /* Parsing is finished; if any error occurred, then the 'good' flag has been cleared. */
-            if (!good) {
+            if (!good)
+            {
                 throw BadTime(type, orig);
             }
 
-            /* Leap seconds are not supported by .NET, so we claim they do not occur. */
-            if (second == 60) {
+            /* Leap seconds are not supported by .NET, so we claim they do not occur. 
+             */
+            if (second == 60)
+            {
                 second = 59;
             }
 
             /* .NET implementation performs all the checks (including checks on month length
              * depending on year, as per the proleptic Gregorian calendar). */
-            try {
-                if (noTZ) {
+            try
+            {
+                if (noTZ)
+                {
                     DateTime dt = new DateTime(year, month, day, hour, minute, second, millisecond,
                         DateTimeKind.Local);
                     return dt.ToUniversalTime();
                 }
                 TimeSpan tzOff = new TimeSpan(tzHours, tzMinutes, 0);
-                if (negZ) {
+                if (negZ)
+                {
                     tzOff = tzOff.Negate();
                 }
                 DateTimeOffset dto = new DateTimeOffset(year, month, day, hour, minute, second,
                     millisecond, tzOff);
                 return dto.UtcDateTime;
             }
-            catch (Exception e) {
+            catch (Exception e)
+            {
                 throw BadTime(type, orig, e);
             }
         }
 
-        /// <summary></summary>
-        /// <param name="s"></param>
-        /// <param name="off"></param>
-        /// <param name="good"></param>
-        /// <returns></returns>
-        private static int Dec2(string s, int off, ref bool good)
+        static int Dec2(string s, int off, ref bool good)
         {
-            if (off < 0 || off >= (s.Length - 1)) {
+            if (off < 0 || off >= (s.Length - 1))
+            {
                 good = false;
                 return -1;
             }
             char c1 = s[off];
             char c2 = s[off + 1];
-            if (c1 < '0' || c1 > '9' || c2 < '0' || c2 > '9') {
+            if (c1 < '0' || c1 > '9' || c2 < '0' || c2 > '9')
+            {
                 good = false;
                 return -1;
             }
             return 10 * (c1 - '0') + (c2 - '0');
         }
 
-        /// <summary></summary>
-        /// <param name="type"></param>
-        /// <param name="s"></param>
-        /// <param name="e"></param>
-        /// <returns></returns>
-        private static AsnException BadTime(int type, string s, Exception e = null)
+        static AsnException BadTime(int type, string s)
         {
-            string msg = string.Format("invalid {0} string: '{1}'",
-                (type == UTCTime) ? "UTCTime" : "GeneralizedTime",
-                s);
-            if (null == e) {
+            return BadTime(type, s, null);
+        }
+
+        static AsnException BadTime(int type, string s, Exception e)
+        {
+            string tt = (type == UTCTime) ? "UTCTime" : "GeneralizedTime";
+            string msg = String.Format("invalid {0} string: '{1}'", tt, s);
+            if (e == null)
+            {
                 return new AsnException(msg);
             }
-            else {
+            else
+            {
                 return new AsnException(msg, e);
             }
         }
 
         /* =============================================================== */
 
+        /* Create a new element for a primitive value. The provided buffer is internally copied. */
+        public static AsnElt MakePrimitive(int tagValue, byte[] val)
+        {
+            return MakePrimitive(UNIVERSAL, tagValue, val, 0, val.Length);
+        }
+
+        /* Create a new element for a primitive value. The provided buffer is internally copied */
+        public static AsnElt MakePrimitive(int tagValue, byte[] val, int off, int len)
+        {
+            return MakePrimitive(UNIVERSAL, tagValue, val, off, len);
+        }
+
+        /* Create a new element for a primitive value. The provided buffer is internally copied. */
+        public static AsnElt MakePrimitive(int tagClass, int tagValue, byte[] val)
+        {
+            return MakePrimitive(tagClass, tagValue, val, 0, val.Length);
+        }
+
+        /* Create a new element for a primitive value. The provided buffer is internally copied. */
+        public static AsnElt MakePrimitive(int tagClass, int tagValue,
+            byte[] val, int off, int len)
+        {
+            byte[] nval = new byte[len];
+            Array.Copy(val, off, nval, 0, len);
+            return MakePrimitiveInner(tagClass, tagValue, nval, 0, len);
+        }
+
         /* Like MakePrimitive(), but the provided array is NOT copied. This is for other factory
          * methods that already allocate a new array. */
-        private static AsnElt MakeUniversalPrimitiveInner(int tagValue, byte[] val)
+        static AsnElt MakePrimitiveInner(int tagValue, byte[] val)
         {
             return MakePrimitiveInner(UNIVERSAL, tagValue, val, 0, val.Length);
         }
 
+        static AsnElt MakePrimitiveInner(int tagValue, byte[] val, int off, int len)
+        {
+            return MakePrimitiveInner(UNIVERSAL, tagValue, val, off, len);
+        }
+
+        static AsnElt MakePrimitiveInner(int tagClass, int tagValue, byte[] val)
+        {
+            return MakePrimitiveInner(tagClass, tagValue, val, 0, val.Length);
+        }
+
         private static AsnElt MakePrimitiveInner(int tagClass, int tagValue, byte[] val, int off, int len)
         {
-            if (tagClass < 0 || tagClass > 3) {
+            if (tagClass < 0 || tagClass > 3)
+            {
                 throw new AsnException("invalid tag class: " + tagClass);
             }
-            if (tagValue < 0) {
+            if (tagValue < 0)
+            {
                 throw new AsnException("invalid tag value: " + tagValue);
             }
             AsnElt a = new AsnElt(tagClass, tagValue);
-            a._objectBuffer = new byte[len];
-            Array.Copy(val, off, a._objectBuffer, 0, len);
-            a._objectOffset = 0;
-            a._objectLength = -1;
-            a._valueOffset = 0;
-            a._valueLength = len;
-            a._hasEncodedHeader = false;
+            a.objBuf = new byte[len];
+            Array.Copy(val, off, a.objBuf, 0, len);
+            a.objOff = 0;
+            a.objLen = -1;
+            a.valOff = 0;
+            a.valLen = len;
+            a.hasEncodedHeader = false;
             a._sub = null;
             return a;
         }
 
-        /// <summary>Create a new INTEGER value for the provided integer.</summary>
-        /// <param name="x"></param>
-        /// <returns></returns>
-        internal static AsnElt MakeInteger(long x)
+        /* Create a new INTEGER value for the provided integer. */
+        public static AsnElt MakeInteger(long x)
         {
-            byte[] v;
+            if (x >= 0)
+            {
+                return MakeInteger((ulong)x);
+            }
             int k = 1;
-            if (0 <= x) {
-                for (ulong w = (ulong)x; 0x80 <= w; w >>= sizeof(byte)) {
-                    k++;
-                }
+            for (long w = x; w <= -(long)0x80; w >>= 8)
+            {
+                k++;
             }
-            else {
-                for (long w = x; (-(long)0x80) >= w; w >>= sizeof(byte)) {
-                    k++;
-                }
-            }
-            v = new byte[k];
-            for (long w = x; k > 0; w >>= sizeof(byte)) {
+            byte[] v = new byte[k];
+            for (long w = x; k > 0; w >>= 8)
+            {
                 v[--k] = (byte)w;
             }
-            return MakeUniversalPrimitiveInner(INTEGER, v);
+            return MakePrimitiveInner(INTEGER, v);
         }
 
-        /// <summary>Create a BIT STRING from the provided value. The number of "unused bits" is
-        /// set to 0.</summary>
-        /// <param name="buf"></param>
-        /// <returns></returns>
-        internal static AsnElt MakeBitString(byte[] buf)
+        /* Create a new INTEGER value for the provided integer. */
+        public static AsnElt MakeInteger(ulong x)
         {
-            int len = buf.Length;
-            int off = 0;
+            int k = 1;
+            for (ulong w = x; w >= 0x80; w >>= 8)
+            {
+                k++;
+            }
+            byte[] v = new byte[k];
+            for (ulong w = x; k > 0; w >>= 8)
+            {
+                v[--k] = (byte)w;
+            }
+            return MakePrimitiveInner(INTEGER, v);
+        }
+
+        /* Create a new INTEGER value for the provided integer. The x[] array uses
+         * _unsigned_ big-endian encoding. */
+        public static AsnElt MakeInteger(byte[] x)
+        {
+            int xLen = x.Length;
+            int j = 0;
+            while (j < xLen && x[j] == 0x00)
+            {
+                j++;
+            }
+            if (j == xLen)
+            {
+                return MakePrimitiveInner(INTEGER, new byte[] { 0x00 });
+            }
+            byte[] v;
+            if (x[j] < 0x80)
+            {
+                v = new byte[xLen - j];
+                Array.Copy(x, j, v, 0, v.Length);
+            }
+            else
+            {
+                v = new byte[1 + xLen - j];
+                Array.Copy(x, j, v, 1, v.Length - 1);
+            }
+            return MakePrimitiveInner(INTEGER, v);
+        }
+
+        /* Create a new INTEGER value for the provided integer. The x[] array uses _signed_
+         * big-endian encoding. */
+        public static AsnElt MakeIntegerSigned(byte[] x)
+        {
+            int xLen = x.Length;
+            if (xLen == 0)
+            {
+                throw new AsnException("Invalid signed integer (empty)");
+            }
+            int j = 0;
+            if (x[0] >= 0x80)
+            {
+                while (j < (xLen - 1)
+                    && x[j] == 0xFF
+                    && x[j + 1] >= 0x80)
+                {
+                    j++;
+                }
+            }
+            else
+            {
+                while (j < (xLen - 1)
+                    && x[j] == 0x00
+                    && x[j + 1] < 0x80)
+                {
+                    j++;
+                }
+            }
+            byte[] v = new byte[xLen - j];
+            Array.Copy(x, j, v, 0, v.Length);
+            return MakePrimitiveInner(INTEGER, v);
+        }
+
+        /* Create a BIT STRING from the provided value. The number of "unused bits" is set to 0. */
+        public static AsnElt MakeBitString(byte[] buf)
+        {
+            return MakeBitString(buf, 0, buf.Length);
+        }
+
+        public static AsnElt MakeBitString(byte[] buf, int off, int len)
+        {
             byte[] tmp = new byte[len + 1];
             Array.Copy(buf, off, tmp, 1, len);
-            return MakeUniversalPrimitiveInner(BIT_STRING, tmp);
+            return MakePrimitiveInner(BIT_STRING, tmp);
         }
 
-        /// <summary>Create an OCTET STRING from the provided value.</summary>
-        /// <param name="buf"></param>
-        /// <returns></returns>
+        /* Create a BIT STRING from the provided value. The number of "unused bits" is specified. */
+        public static AsnElt MakeBitString(int unusedBits, byte[] buf)
+        {
+            return MakeBitString(unusedBits, buf, 0, buf.Length);
+        }
+
+        public static AsnElt MakeBitString(int unusedBits, byte[] buf, int off, int len)
+        {
+            if (unusedBits < 0 || unusedBits > 7
+                || (unusedBits != 0 && len == 0))
+            {
+                throw new AsnException("Invalid number of unused bits in BIT STRING: " + unusedBits);
+            }
+            byte[] tmp = new byte[len + 1];
+            tmp[0] = (byte)unusedBits;
+            Array.Copy(buf, off, tmp, 1, len);
+            if (len > 0)
+            {
+                tmp[len - 1] &= (byte)(0xFF << unusedBits);
+            }
+            return MakePrimitiveInner(BIT_STRING, tmp);
+        }
+
+        /* Create an OCTET STRING from the provided value. */
         public static AsnElt MakeBlob(byte[] buf)
         {
-            int len = buf.Length;
-            byte[] nval = new byte[len];
-            Array.Copy(buf, 0, nval, 0, len);
-            return MakePrimitiveInner(UNIVERSAL, OCTET_STRING, nval, 0, len);
+            return MakeBlob(buf, 0, buf.Length);
         }
 
-        /// <summary>Create a new constructed elements, by providing the relevant sub-elements.</summary>
-        /// <param name="tagClass"></param>
-        /// <param name="tagValue"></param>
-        /// <param name="subs"></param>
-        /// <returns></returns>
-        private static AsnElt Make(int tagClass, int tagValue, params AsnElt[] subs)
+        public static AsnElt MakeBlob(byte[] buf, int off, int len)
         {
-            if ((0 > tagClass) || (3 < tagClass)) {
+            return MakePrimitive(OCTET_STRING, buf, off, len);
+        }
+
+        /* Create a new constructed elements, by providing the relevant sub-elements. */
+        public static AsnElt Make(int tagValue, params AsnElt[] subs)
+        {
+            return Make(UNIVERSAL, tagValue, subs);
+        }
+
+        /* Create a new constructed elements, by providing the relevant sub-elements. */
+        public static AsnElt Make(int tagClass, int tagValue, params AsnElt[] subs)
+        {
+            if (tagClass < 0 || tagClass > 3)
+            {
                 throw new AsnException("invalid tag class: " + tagClass);
             }
-            if (0 > tagValue) {
+            if (tagValue < 0)
+            {
                 throw new AsnException("invalid tag value: " + tagValue);
             }
-            AsnElt result = new AsnElt(tagClass, tagValue) {
-                _objectBuffer = null,
-                _objectOffset = 0,
-                _objectLength = -1,
-                _valueOffset = 0,
-                _valueLength = -1,
-                _hasEncodedHeader = false,
+            AsnElt result = new AsnElt(tagClass, tagValue)
+            {
+                objBuf = null,
+                objOff = 0,
+                objLen = -1,
+                valOff = 0,
+                valLen = -1,
+                hasEncodedHeader = false,
             };
-            if (null == subs) {
+            if (null == subs)
+            {
                 result._sub = new AsnElt[0];
             }
-            else {
+            else
+            {
                 result._sub = new AsnElt[subs.Length];
                 Array.Copy(subs, 0, result._sub, 0, subs.Length);
             }
             return result;
         }
 
-        /// <summary>Wrap an element into an explicit CONTEXT tag.</summary>
-        /// <param name="tagValue"></param>
-        /// <param name="x"></param>
-        /// <returns></returns>
+        /* Create a SET OF: sub-elements are automatically sorted by lexicographic order of their
+         * DER encodings. Identical elements are merged. */
+        public static AsnElt MakeSetOf(params AsnElt[] subs)
+        {
+            AsnElt a = new AsnElt(UNIVERSAL, SET);
+            a.objBuf = null;
+            a.objOff = 0;
+            a.objLen = -1;
+            a.valOff = 0;
+            a.valLen = -1;
+            a.hasEncodedHeader = false;
+            if (subs == null)
+            {
+                a._sub = new AsnElt[0];
+            }
+            else
+            {
+                SortedDictionary<byte[], AsnElt> d =
+                    new SortedDictionary<byte[], AsnElt>(COMPARER_LEXICOGRAPHIC);
+                foreach (AsnElt ax in subs)
+                {
+                    d[ax.Encode()] = ax;
+                }
+                AsnElt[] tmp = new AsnElt[d.Count];
+                int j = 0;
+                foreach (AsnElt ax in d.Values)
+                {
+                    tmp[j++] = ax;
+                }
+                a._sub = tmp;
+            }
+            return a;
+        }
+
+        /* Wrap an element into an explicit tag. */
+        public static AsnElt MakeExplicit(int tagClass, int tagValue, AsnElt x)
+        {
+            return Make(tagClass, tagValue, x);
+        }
+
+        /* Wrap an element into an explicit CONTEXT tag. */
         public static AsnElt MakeExplicit(int tagValue, AsnElt x)
         {
             return Make(CONTEXT, tagValue, x);
         }
 
-        /// <summary>Apply an implicit tag to a value. The source AsnElt object is unmodified;
-        /// a new object is returned.</summary>
-        /// <param name="tagClass"></param>
-        /// <param name="tagValue"></param>
-        /// <param name="x"></param>
-        /// <returns></returns>
-        internal static AsnElt MakeImplicit(int tagClass, int tagValue, AsnElt x)
+        /* Apply an implicit tag to a value. The source AsnElt object is unmodified; a new object
+         * is returned. */
+        public static AsnElt MakeImplicit(int tagClass, int tagValue, AsnElt x)
         {
-            if (x.IsConstructed) {
+            if (x.IsConstructed)
+            {
                 return Make(tagClass, tagValue, x._sub);
             }
-            AsnElt result = new AsnElt(tagClass, tagValue) {
-                _objectOffset = 0,
-                _objectLength = -1,
-                _hasEncodedHeader = false,
+            AsnElt result = new AsnElt(tagClass, tagValue)
+            {
+                objOff = 0,
+                objLen = -1,
+                hasEncodedHeader = false,
                 _sub = null
             };
-            result._objectBuffer = x.GetValue(out result._valueOffset, out result._valueLength);
+            result.objBuf = x.GetValue(out result.valOff, out result.valLen);
             return result;
         }
 
-        /// <summary></summary>
-        /// <param name="subs"></param>
-        /// <returns></returns>
-        internal static AsnElt MakeSequence(params AsnElt[] subs)
+        /* Create an OBJECT IDENTIFIER from its string representation. This function tolerates
+         * extra leading zeros. */
+        public static AsnElt MakeOID(string str)
         {
-            return Make(UNIVERSAL, SEQUENCE, subs);
+            List<long> r = new List<long>();
+            int n = str.Length;
+            long x = -1;
+            for (int i = 0; i < n; i++)
+            {
+                int c = str[i];
+                if (c == '.')
+                {
+                    if (x < 0)
+                    {
+                        throw new AsnException("invalid OID (empty element)");
+                    }
+                    r.Add(x);
+                    x = -1;
+                    continue;
+                }
+                if (c < '0' || c > '9')
+                {
+                    throw new AsnException(String.Format("invalid character U+{0:X4} in OID", c));
+                }
+                if (x < 0)
+                {
+                    x = 0;
+                }
+                else if (x > ((Int64.MaxValue - 9) / 10))
+                {
+                    throw new AsnException("OID element overflow");
+                }
+                x = x * (long)10 + (long)(c - '0');
+            }
+            if (x < 0)
+            {
+                throw new AsnException("invalid OID (empty element)");
+            }
+            r.Add(x);
+            if (r.Count < 2)
+            {
+                throw new AsnException("invalid OID (not enough elements)");
+            }
+            if (r[0] > 2 || r[1] > 40)
+            {
+                throw new AsnException("invalid OID (first elements out of range)");
+            }
+            MemoryStream ms = new MemoryStream();
+            ms.WriteByte((byte)(40 * (int)r[0] + (int)r[1]));
+            for (int i = 2; i < r.Count; i++)
+            {
+                long v = r[i];
+                if (v < 0x80)
+                {
+                    ms.WriteByte((byte)v);
+                    continue;
+                }
+                int k = -7;
+                for (long w = v; w != 0; w >>= 7, k += 7) ;
+                ms.WriteByte((byte)(0x80 + (int)(v >> k)));
+                for (k -= 7; k >= 0; k -= 7)
+                {
+                    int z = (int)(v >> k) & 0x7F;
+                    if (k > 0)
+                    {
+                        z |= 0x80;
+                    }
+                    ms.WriteByte((byte)z);
+                }
+            }
+            byte[] buf = ms.ToArray();
+            return MakePrimitiveInner(OBJECT_IDENTIFIER, buf, 0, buf.Length);
         }
 
-        /// <summary>Create a string of the provided type and contents. The string type is a
-        /// universal tag value for one of the string or time types.</summary>
-        /// <param name="type"></param>
-        /// <param name="value"></param>
-        /// <returns></returns>
+        internal static AsnElt MakeSequence(params AsnElt[] subs)
+        {
+            return Make(SEQUENCE, subs);
+        }
+
+        /* Create a string of the provided type and contents. The string type is a universal tag
+         * value for one of the string or time types. */
         public static AsnElt MakeString(int type, string value)
         {
             VerifyChars(value.ToCharArray(), type);
             byte[] buf;
-            switch (type) {
+            switch (type)
+            {
                 case NumericString:
                 case PrintableString:
                 case UTCTime:
@@ -1576,33 +1969,30 @@ namespace Rubeus.Asn1
                 default:
                     throw new AsnException("unsupported string type: " + type);
             }
-            return MakeUniversalPrimitiveInner(type, buf);
+            return MakePrimitiveInner(type, buf);
         }
 
-        /// <summary></summary>
-        /// <param name="value"></param>
-        /// <returns></returns>
-        private static byte[] EncodeMono(string value)
+        private static byte[] EncodeMono(string str)
         {
-            byte[] result = new byte[value.Length];
+            byte[] result = new byte[str.Length];
             int k = 0;
-            foreach (char c in value) {
+            foreach (char c in str)
+            {
                 result[k++] = (byte)c;
             }
             return result;
         }
 
-        /// <summary>Get the code point at offset 'off' in the string. Either one or two 'char'
-        /// slots are used; 'off' is updated accordingly.</summary>
-        /// <param name="str"></param>
-        /// <param name="off"></param>
-        /// <returns></returns>
+        /* Get the code point at offset 'off' in the string. Either one or two 'char' slots are
+         * used; 'off' is updated accordingly. */
         private static int CodePoint(string str, ref int off)
         {
             int result = str[off++];
-            if (result >= 0xD800 && result < 0xDC00 && off < str.Length) {
+            if (result >= 0xD800 && result < 0xDC00 && off < str.Length)
+            {
                 int d = str[off];
-                if (d >= 0xDC00 && d < 0xE000) {
+                if (d >= 0xDC00 && d < 0xE000)
+                {
                     result = ((result & 0x3FF) << 10) + (d & 0x3FF) + 0x10000;
                     off++;
                 }
@@ -1610,29 +2000,31 @@ namespace Rubeus.Asn1
             return result;
         }
 
-        /// <summary></summary>
-        /// <param name="str"></param>
-        /// <returns></returns>
         private static byte[] EncodeUTF8(string str)
         {
             int k = 0;
             int n = str.Length;
             MemoryStream ms = new MemoryStream();
-            while (k < n) {
+            while (k < n)
+            {
                 int cp = CodePoint(str, ref k);
-                if (cp < 0x80) {
+                if (cp < 0x80)
+                {
                     ms.WriteByte((byte)cp);
                 }
-                else if (cp < 0x800) {
+                else if (cp < 0x800)
+                {
                     ms.WriteByte((byte)(0xC0 + (cp >> 6)));
                     ms.WriteByte((byte)(0x80 + (cp & 63)));
                 }
-                else if (cp < 0x10000) {
+                else if (cp < 0x10000)
+                {
                     ms.WriteByte((byte)(0xE0 + (cp >> 12)));
                     ms.WriteByte((byte)(0x80 + ((cp >> 6) & 63)));
                     ms.WriteByte((byte)(0x80 + (cp & 63)));
                 }
-                else {
+                else
+                {
                     ms.WriteByte((byte)(0xF0 + (cp >> 18)));
                     ms.WriteByte((byte)(0x80 + ((cp >> 12) & 63)));
                     ms.WriteByte((byte)(0x80 + ((cp >> 6) & 63)));
@@ -1642,29 +2034,25 @@ namespace Rubeus.Asn1
             return ms.ToArray();
         }
 
-        /// <summary></summary>
-        /// <param name="str"></param>
-        /// <returns></returns>
         private static byte[] EncodeUTF16(string str)
         {
             byte[] buf = new byte[str.Length << 1];
             int k = 0;
-            foreach (char c in str) {
+            foreach (char c in str)
+            {
                 buf[k++] = (byte)(c >> 8);
                 buf[k++] = (byte)c;
             }
             return buf;
         }
 
-        /// <summary></summary>
-        /// <param name="str"></param>
-        /// <returns></returns>
         private static byte[] EncodeUTF32(string str)
         {
             int k = 0;
             int n = str.Length;
             MemoryStream ms = new MemoryStream();
-            while (k < n) {
+            while (k < n)
+            {
                 int cp = CodePoint(str, ref k);
                 ms.WriteByte((byte)(cp >> 24));
                 ms.WriteByte((byte)(cp >> 16));
@@ -1674,18 +2062,17 @@ namespace Rubeus.Asn1
             return ms.ToArray();
         }
 
-        /// <summary>Create a time value of the specified type (UTCTime or GeneralizedTime).</summary>
-        /// <param name="type"></param>
-        /// <param name="dt"></param>
-        /// <returns></returns>
-        private static AsnElt MakeTime(int type, DateTime dt)
+        /* Create a time value of the specified type (UTCTime or GeneralizedTime). */
+        public static AsnElt MakeTime(int type, DateTime dt)
         {
             dt = dt.ToUniversalTime();
             string str;
-            switch (type) {
+            switch (type)
+            {
                 case UTCTime:
                     int year = dt.Year;
-                    if (year < 1950 || year >= 2050) {
+                    if (year < 1950 || year >= 2050)
+                    {
                         throw new AsnException(String.Format("cannot encode year {0} as UTCTime", year));
                     }
                     year = year % 100;
@@ -1696,14 +2083,18 @@ namespace Rubeus.Asn1
                     str = String.Format("{0:d4}{1:d2}{2:d2}{3:d2}{4:d2}{5:d2}",
                         dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second);
                     int millis = dt.Millisecond;
-                    if (millis != 0) {
-                        if (millis % 100 == 0) {
+                    if (millis != 0)
+                    {
+                        if (millis % 100 == 0)
+                        {
                             str = String.Format("{0}.{1:d1}", str, millis / 100);
                         }
-                        else if (millis % 10 == 0) {
+                        else if (millis % 10 == 0)
+                        {
                             str = String.Format("{0}.{1:d2}", str, millis / 10);
                         }
-                        else {
+                        else
+                        {
                             str = String.Format("{0}.{1:d3}", str, millis);
                         }
                     }
@@ -1713,6 +2104,27 @@ namespace Rubeus.Asn1
                     throw new AsnException("unsupported time type: " + type);
             }
             return MakeString(type, str);
+        }
+
+        /* Create a time value of the specified type (UTCTime or GeneralizedTime). */
+        public static AsnElt MakeTime(int type, DateTimeOffset dto)
+        {
+            return MakeTime(type, dto.UtcDateTime);
+        }
+
+        /* Create a time value with an automatic type selection (UTCTime if year is in the
+         * 1950..2049 range, GeneralizedTime otherwise). */
+        public static AsnElt MakeTimeAuto(DateTime dt)
+        {
+            dt = dt.ToUniversalTime();
+            return MakeTime((dt.Year >= 1950 && dt.Year <= 2049) ? UTCTime : GeneralizedTime, dt);
+        }
+
+        /* Create a time value with an automatic type selection (UTCTime if year is in the
+         * 1950..2049 range, GeneralizedTime otherwise). */
+        public static AsnElt MakeTimeAuto(DateTimeOffset dto)
+        {
+            return MakeTimeAuto(dto.UtcDateTime);
         }
 
         private static readonly IComparer<byte[]> COMPARER_LEXICOGRAPHIC = new ComparerLexicographic();
@@ -1754,16 +2166,17 @@ namespace Rubeus.Asn1
         public const int CONTEXT = 2;
         public const int PRIVATE = 3;
 
-        private bool _hasEncodedHeader;
-        private byte[] _objectBuffer;
-        private int _objectOffset;
-        private int _objectLength;
-        private int _valueLength;
-        private int _valueOffset;
+        private byte[] objBuf;
+        private int objOff;
+        private int objLen;
+        private int valOff;
+        private int valLen;
+        private bool hasEncodedHeader;
 
         /* The sub-elements. This is null if this element is primitive.
          * DO NOT MODIFY this array. */
         private AsnElt[] _sub;
+        private int _tagClass;
 
         // public static readonly AsnElt NULL_V = AsnElt.MakePrimitive(NULL, new byte[0]);
         // public static readonly AsnElt BOOL_TRUE = AsnElt.MakePrimitive(BOOLEAN, new byte[] { 0xFF });
@@ -1776,9 +2189,11 @@ namespace Rubeus.Asn1
                 int xLen = x.Length;
                 int yLen = y.Length;
                 int cLen = Math.Min(xLen, yLen);
-                for (int index = 0; index < cLen; index++) {
-                    if (x[index] != y[index]) {
-                        return (int)x[index] - (int)y[index];
+                for (int i = 0; i < cLen; i++)
+                {
+                    if (x[i] != y[i])
+                    {
+                        return (int)x[i] - (int)y[i];
                     }
                 }
                 return xLen - yLen;

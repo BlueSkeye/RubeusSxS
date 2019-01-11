@@ -164,7 +164,7 @@ namespace Rubeus
                 ulong count;
                 IntPtr luidPtr = IntPtr.Zero;
                 IntPtr iter = luidPtr;
-                uint ret = Interop.LsaEnumerateLogonSessions(out count, out luidPtr);  // get an array of pointers to LUIDs
+                NativeReturnCode ret = Interop.LsaEnumerateLogonSessions(out count, out luidPtr);  // get an array of pointers to LUIDs
 
                 for (ulong i = 0; i < count; i++) {
                     IntPtr sessionData;
@@ -257,7 +257,7 @@ namespace Rubeus
                                                 IntPtr newTargetNameBuffPtr = (IntPtr)((long)(unmanagedAddr.ToInt64() + (long)structSize));
 
                                                 // copy unicode chars to the new location
-                                                Interop.CopyMemory(newTargetNameBuffPtr, tName.buffer, tName.MaximumLength);
+                                                Interop.CopyMemory(newTargetNameBuffPtr, tName.Buffer, tName.MaximumLength);
 
                                                 // update the target name buffer ptr            
                                                 Marshal.WriteIntPtr(unmanagedAddr, 24, newTargetNameBuffPtr);
@@ -369,7 +369,7 @@ namespace Rubeus
             // set tName pointer to end of KERB_RETRIEVE_TKT_REQUEST
             IntPtr newTargetNameBuffPtr = (IntPtr)((long)(unmanagedAddr.ToInt64() + (long)structSize));
             // copy unicode chars to the new location
-            Interop.CopyMemory(newTargetNameBuffPtr, tName.buffer, tName.MaximumLength);
+            Interop.CopyMemory(newTargetNameBuffPtr, tName.Buffer, tName.MaximumLength);
             // update the target name buffer ptr            
             Marshal.WriteIntPtr(unmanagedAddr, 24, newTargetNameBuffPtr);
             // actually get the data
@@ -601,7 +601,7 @@ namespace Rubeus
                 // set tName pointer to end of KERB_RETRIEVE_TKT_REQUEST
                 IntPtr newTargetNameBuffPtr = (IntPtr)(unmanagedAddr.ToInt64() + structSize);
                 // copy unicode chars to the new location
-                Interop.CopyMemory(newTargetNameBuffPtr, tName.buffer, tName.MaximumLength);
+                Interop.CopyMemory(newTargetNameBuffPtr, tName.Buffer, tName.MaximumLength);
                 // update the target name buffer ptr            
                 Marshal.WriteIntPtr(unmanagedAddr, 24, newTargetNameBuffPtr);
                 // actually get the data
@@ -743,7 +743,7 @@ namespace Rubeus
                 IntPtr luidPtr = IntPtr.Zero;
                 IntPtr iter = luidPtr;
 
-                uint ret = Interop.LsaEnumerateLogonSessions(out count, out luidPtr);  // get an array of pointers to LUIDs
+                NativeReturnCode ret = Interop.LsaEnumerateLogonSessions(out count, out luidPtr);  // get an array of pointers to LUIDs
 
                 for (ulong i = 0; i < count; i++) {
                     IntPtr sessionData;
@@ -852,7 +852,7 @@ namespace Rubeus
                                             // set tName pointer to end of KERB_RETRIEVE_TKT_REQUEST
                                             IntPtr newTargetNameBuffPtr = (IntPtr)((long)(unmanagedAddr.ToInt64() + (long)structSize));
                                             // copy unicode chars to the new location
-                                            Interop.CopyMemory(newTargetNameBuffPtr, tName.buffer, tName.MaximumLength);
+                                            Interop.CopyMemory(newTargetNameBuffPtr, tName.Buffer, tName.MaximumLength);
                                             // update the target name buffer ptr
                                             Marshal.WriteIntPtr(unmanagedAddr, 24, newTargetNameBuffPtr);
                                             // actually get the data
