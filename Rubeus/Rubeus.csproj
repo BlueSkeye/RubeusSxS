@@ -41,6 +41,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Asn1\AsnElt.cs" />
+    <Compile Include="Asn1\AsnElt_UNUSED.cs" />
     <Compile Include="Asn1\AsnException.cs" />
     <Compile Include="Asn1\AsnIO.cs" />
     <Compile Include="Asn1\AsnOID.cs" />

@@ -5,8 +5,8 @@ using System.Text;
 
 namespace Rubeus.Asn1
 {
-    /* An AsnElt instance represents a decoded ASN.1 DER object. It is immutable. */
-    public class AsnElt
+    /// <summary>An AsnElt instance is an immutable representation of a decoded ASN.1 DER object.</summary>
+    public partial class AsnElt
     {
         /* Internal rules
 	     * Instances are immutable. They reference an internal buffer that they never modify. 
@@ -41,74 +41,77 @@ namespace Rubeus.Asn1
             return;
         }
 
+        // UNUSED : internal AsnElt this[int index] { get }
+
         public int Count
         {
             get { return (null == _sub) ? 0 : _sub.Length; }
         }
 
-        /* The encoded object length (complete with header). */
-        public int EncodedLength
+        /// <summary>The encoded object length (complete with header).</summary>
+        internal int EncodedLength
         {
             get
             {
-                if (objLen < 0)
-                {
-                    int vlen = ValueLength;
-                    objLen = TagLength(TagValue) + LengthLength(vlen) + vlen;
+                if (0 > _objectLength) {
+                    int valueLength = ValueLength;
+                    _objectLength = GetTagLength(TagValue) + GetLengthEncodedLength(valueLength) + valueLength;
                 }
-                return objLen;
+                return _objectLength;
             }
         }
 
-        public AsnElt FirstElement
+        internal AsnElt FirstElement
         {
             get { return (0 < _sub.Length) ? _sub[0] : null; }
         }
 
-        /* The "constructed" flag: true for an elements with sub-elements, false for a primitive
-         * element. */
-        private bool IsConstructed
+        /// <summary>The "constructed" flag: true for an elements with sub-elements, false for
+        /// a primitive element.</summary>
+        internal bool IsConstructed
         {
             get { return (null != _sub); }
         }
 
-        public AsnElt SecondElement
+        internal AsnElt SecondElement
         {
             get { return (1 < _sub.Length) ? _sub[1] : null; }
         }
 
-        /* The tag class for this element. */
-        public int TagClass
+        /// <summary>The tag class for this element.</summary>
+        internal int TagClass
         {
             get { return _tagClass; }
         }
 
-        /* Get a string representation of the tag class and value. */
-        public string TagString
+        /// <summary>Get a string representation of the tag class and value.</summary>
+        internal string TagString
         {
             get { return TagToString(_tagClass, TagValue); }
         }
 
-        /* The tag value for this element. */
-        public int TagValue { get; set; }
+        /// <summary>The tag value for this element.</summary>
+        internal int TagValue { get; set; }
 
-        /* The value length. When the object is BER-encoded with an indefinite length, the value
-         * length includes all the sub-objects but NOT the formal null-tag marker. */
+        /// <summary>The value length. When the object is BER-encoded with an indefinite length,
+        /// the value length includes all the sub-objects but NOT the formal null-tag marker.</summary>
         public int ValueLength
         {
             get
             {
-                if (valLen < 0)
-                {
-                    if (IsConstructed)
-                    {
-                        int vlen = 0;
-                        foreach (AsnElt a in EnumerateElements()) { vlen += a.EncodedLength; }
-                        valLen = vlen;
+                if (0 > _valueLength) {
+                    if (IsConstructed) {
+                        int valueLength = 0;
+                        foreach (AsnElt item in EnumerateElements()) {
+                            valueLength += item.EncodedLength;
+                        }
+                        _valueLength = valueLength;
                     }
-                    else { valLen = objBuf.Length; }
+                    else {
+                        _valueLength = _objectBuffer.Length;
+                    }
                 }
-                return valLen;
+                return _valueLength;
             }
         }
 
@@ -118,652 +121,554 @@ namespace Rubeus.Asn1
         //    private set { _sub = value; }
         //}
 
-        /* Check that this element is constructed. An exception is thrown if this is not the case.*/
+        /// <summary>Check that this element is constructed. An exception is thrown if this is not the case.</summary>
         private void AssertConstructed()
         {
-            if (!IsConstructed)
-            {
+            if (!IsConstructed) {
                 throw new AsnException("not constructed");
             }
         }
 
-        /* Check that this element is primitive. An exception is thrown if this is not the case. */
+        public void AssertNullValue()
+        {
+            AssertPrimitive();
+            if (0 != ValueLength) {
+                throw new AsnException(String.Format("invalid NULL (length = {0})", ValueLength));
+            }
+        }
+
+        private static void AssertOffsetValue(int offset, int limitExcluded)
+        {
+            if (offset >= limitExcluded) {
+                throw new AsnException("offset overflow");
+            }
+        }
+
+        /// <summary>Check that this element is primitive. An exception is thrown if this is not the case.</summary>
         private void AssertPrimitive()
         {
-            if (IsConstructed)
-            {
+            if (IsConstructed) {
                 throw new AsnException("not primitive");
             }
         }
 
-        /* Check that this element is constructed and contains exactly 'n' sub-elements. */
-        public void CheckNumSub(int n)
-        {
-            AssertConstructed();
-            int realLength = _sub.Length;
-            if (realLength != n)
-            {
-                throw new AsnException("wrong number of sub-elements: " + realLength + " (expected: " + n + ")");
-            }
-        }
+        // UNUSED : internal void AssertItemsCountEquals(int expected)
 
-        /* Check that this element is constructed and contains no more than 'n' sub-elements. */
-        public void CheckNumSubMax(int n)
-        {
-            AssertConstructed();
-            int realLength = _sub.Length;
-            if (realLength > n)
-            {
-                throw new AsnException("too many sub-elements: " + realLength + " (maximum: " + n + ")");
-            }
-        }
+        // UNUSED : internal void AssertItemsCountAtLeast(int expected)
 
-        /* Check that this element is constructed and contains at least 'n' sub-elements. */
-        public void CheckNumSubMin(int n)
-        {
-            AssertConstructed();
-            int realLength = _sub.Length;
-            if (realLength < n)
-            {
-                throw new AsnException("not enough sub-elements: " + realLength + " (minimum: " + n + ")");
-            }
-        }
+        // UNUSED : internal void AssertItemsCountAtMost(int expected)
 
-        /* Check that the tag is UNIVERSAL with the provided value. */
-        public void CheckTag(int tv)
+        /// <summary>Check that the tag has the specified class and value.</summary>
+        /// <param name="tagClass"></param>
+        /// <param name="tagValue"></param>
+        private void AssertTagClassAndValue(int tagClass, int tagValue)
         {
-            CheckTag(UNIVERSAL, tv);
-        }
-
-        /* Check that the tag has the specified class and value.*/
-        public void CheckTag(int tc, int tv)
-        {
-            if (_tagClass != tc || TagValue != tv)
-            {
+            if ((_tagClass != tagClass) || (TagValue != tagValue)) {
                 throw new AsnException("unexpected tag: " + TagString);
             }
         }
 
-        public IEnumerable<AsnElt> EnumerateElements()
+        /// <summary>Check that the tag is UNIVERSAL with the provided value.</summary>
+        /// <param name="tagValue"></param>
+        private void AssertUniveralTagValue(int tagValue)
         {
-            foreach (AsnElt item in _sub) { yield return item; }
-            yield break;
+            AssertTagClassAndValue(UNIVERSAL, tagValue);
         }
 
-        /* Get a sub-element. This method throws appropriate exceptions if this element is not
-         * constructed, or the requested index is out of range. */
-        public AsnElt GetSub(int index)
+        /// <summary>Get a copy of the value as a freshly allocated array.</summary>
+        /// <returns></returns>
+        internal byte[] CopyValue()
         {
-            AssertConstructed();
-            if ((0 > index) || (_sub.Length <= index))
-            {
-                throw new AsnException("no such sub-object: n=" + index);
-            }
-            return _sub[index];
-        }
-
-        /* Get the encoded length for a tag. */
-        private static int TagLength(int tv)
-        {
-            if (tv <= 0x1F) { return 1; }
-            int result = 1;
-            while (tv > 0)
-            {
-                result++;
-                tv >>= 7;
-            }
+            byte[] result = new byte[ValueLength];
+            EncodeValue(0, result.Length, result, 0);
             return result;
         }
 
-        private static string TagToString(int tc, int tv)
+        /// <summary>Copy a value chunk. The provided offset ('off') and length ('len') define
+        /// the chunk to copy; the offset is relative to the value start(first value byte has
+        /// offset 0). If the requested window exceeds the value boundaries, an exception is
+        /// thrown.</summary>
+        /// <param name="fromOffset"></param>
+        /// <param name="fromLength"></param>
+        /// <param name="toBuffer"></param>
+        /// <param name="toOffset"></param>
+        public void CopyValueChunk(int fromOffset, int fromLength, byte[] toBuffer, int toOffset)
         {
-            switch (tc)
-            {
-                case UNIVERSAL:
-                    break;
-                case APPLICATION:
-                    return "APPLICATION:" + tv;
-                case CONTEXT:
-                    return "CONTEXT:" + tv;
-                case PRIVATE:
-                    return "PRIVATE:" + tv;
-                default:
-                    return string.Format("INVALID:{0}/{1}", tc, tv);
+            int valueLength = ValueLength;
+            if ((0 > fromOffset) || (0 > fromLength) || (fromLength > (valueLength - fromOffset))) {
+                throw new AsnException(String.Format(
+                    "invalid value window {0}:{1} (value length = {2})", fromOffset, fromLength, valueLength));
             }
-
-            switch (tv)
-            {
-                case BOOLEAN: return "BOOLEAN";
-                case INTEGER: return "INTEGER";
-                case BIT_STRING: return "BIT_STRING";
-                case OCTET_STRING: return "OCTET_STRING";
-                case NULL: return "NULL";
-                case OBJECT_IDENTIFIER: return "OBJECT_IDENTIFIER";
-                case Object_Descriptor: return "Object_Descriptor";
-                case EXTERNAL: return "EXTERNAL";
-                case REAL: return "REAL";
-                case ENUMERATED: return "ENUMERATED";
-                case EMBEDDED_PDV: return "EMBEDDED_PDV";
-                case UTF8String: return "UTF8String";
-                case RELATIVE_OID: return "RELATIVE_OID";
-                case SEQUENCE: return "SEQUENCE";
-                case SET: return "SET";
-                case NumericString: return "NumericString";
-                case PrintableString: return "PrintableString";
-                case TeletexString: return "TeletexString";
-                case VideotexString: return "VideotexString";
-                case IA5String: return "IA5String";
-                case UTCTime: return "UTCTime";
-                case GeneralizedTime: return "GeneralizedTime";
-                case GraphicString: return "GraphicString";
-                case VisibleString: return "VisibleString";
-                case GeneralString: return "GeneralString";
-                case UniversalString: return "UniversalString";
-                case CHARACTER_STRING: return "CHARACTER_STRING";
-                case BMPString: return "BMPString";
-                default:
-                    return String.Format("UNIVERSAL:" + tv);
-            }
+            EncodeValue(fromOffset, fromOffset + fromLength, toBuffer, toOffset);
         }
 
-        /* Get the encoded length for a length. */
-        private static int LengthLength(int len)
+        /// <summary>Decode an ASN.1 object. The provided buffer is internally copied. Trailing
+        /// garbage is not tolerated.</summary>
+        /// <param name="buffer"></param>
+        /// <returns></returns>
+        public static AsnElt Decode(byte[] buffer)
         {
-            if (len < 0x80) { return 1; }
-            int result = 1;
-            while (len > 0)
-            {
-                result++;
-                len >>= 8;
-            }
-            return result;
+            return Decode(buffer, 0, buffer.Length, true);
         }
 
-        /* Decode an ASN.1 object. The provided buffer is internally copied. Trailing garbage is
-         * not tolerated. */
-        public static AsnElt Decode(byte[] buf)
+        /// <summary>Decode an ASN.1 object. The provided buffer is internally copied. Trailing
+        /// garbage is not tolerated.</summary>
+        /// <param name="buffer"></param>
+        /// <param name="offset"></param>
+        /// <param name="length"></param>
+        /// <returns></returns>
+        public static AsnElt Decode(byte[] buffer, int offset, int length)
         {
-            return Decode(buf, 0, buf.Length, true);
+            return Decode(buffer, offset, length, true);
         }
 
-        /* Decode an ASN.1 object. The provided buffer is internally copied. Trailing garbage is
-         * not tolerated. */
-        public static AsnElt Decode(byte[] buf, int off, int len)
+        /// <summary>Decode an ASN.1 object. The provided buffer is internally copied. If 'exactLength'
+        /// is true, then trailing garbage is not tolerated(it triggers an exception).</summary>
+        /// <param name="buffer"></param>
+        /// <param name="exactLength"></param>
+        /// <returns></returns>
+        public static AsnElt Decode(byte[] buffer, bool exactLength)
         {
-            return Decode(buf, off, len, true);
+            return Decode(buffer, 0, buffer.Length, exactLength);
         }
 
-        /* Decode an ASN.1 object. The provided buffer is internally copied. If 'exactLength' is
-         * true, then trailing garbage is not tolerated (it triggers an exception). */
-        public static AsnElt Decode(byte[] buf, bool exactLength)
+        /// <summary>Decode an ASN.1 object. The provided buffer is internally copied. If 'exactLength'
+        /// is true, then trailing garbage is not tolerated(it triggers an exception).</summary>
+        /// <param name="buffer"></param>
+        /// <param name="offset"></param>
+        /// <param name="length"></param>
+        /// <param name="exactLength"></param>
+        /// <returns></returns>
+        public static AsnElt Decode(byte[] buffer, int offset, int length, bool exactLength)
         {
-            return Decode(buf, 0, buf.Length, exactLength);
-        }
-
-        /* Decode an ASN.1 object. The provided buffer is internally copied. If 'exactLength' is
-         * true, then trailing garbage is not tolerated (it triggers an exception). */
-        public static AsnElt Decode(byte[] buf, int off, int len, bool exactLength)
-        {
-            int tc, tv, valOff, valLen;
-            bool cons;
-            int objLen = Decode(buf, off, len, out tc, out tv, out cons, out valOff, out valLen);
-            if (exactLength && objLen != len)
-            {
+            int tagClass, tagValue, valueOffset, valueLength;
+            bool constructed;
+            int objectLength = Decode(buffer, offset, length, out tagClass, out tagValue,
+                out constructed, out valueOffset, out valueLength);
+            if (exactLength && (objectLength != length)) {
                 throw new AsnException("trailing garbage");
             }
-            byte[] nbuf = new byte[objLen];
-            Array.Copy(buf, off, nbuf, 0, objLen);
-            return DecodeNoCopy(nbuf, 0, objLen);
+            byte[] nbuf = new byte[objectLength];
+            Array.Copy(buffer, offset, nbuf, 0, objectLength);
+            return DecodeNoCopy(nbuf, 0, objectLength);
         }
 
-        /* Internal recursive decoder. The provided array is NOT copied. Trailing garbage is
-         * ignored (caller should use the 'objLen' field to learn the total object length). */
-        static AsnElt DecodeNoCopy(byte[] buf, int off, int len)
+        /// <summary>Decode the tag and length, and get the value offset and length. Returned
+        /// value if the total object length.Note: when an object has indefinite length, the
+        /// terminated "null tag" will NOT be considered part of the "value length".</summary>
+        /// <param name="buffer"></param>
+        /// <param name="offset"></param>
+        /// <param name="maxLength"></param>
+        /// <param name="tagClass"></param>
+        /// <param name="tagValue"></param>
+        /// <param name="constructed"></param>
+        /// <param name="valueOffset"></param>
+        /// <param name="valueLength"></param>
+        /// <returns></returns>
+        private static int Decode(byte[] buffer, int offset, int maxLength, out int tagClass,
+            out int tagValue, out bool constructed, out int valueOffset, out int valueLength)
         {
-            int tc, tv, valOff, valLen, objLen;
-            bool constructed;
-            objLen = Decode(buf, off, len, out tc, out tv, out constructed, out valOff, out valLen);
-            AsnElt result = new AsnElt(tc, tv)
-            {
-                objBuf = buf,
-                objOff = off,
-                objLen = objLen,
-                valOff = valOff,
-                valLen = valLen,
-                hasEncodedHeader = true
-            };
-            if (constructed)
-            {
-                List<AsnElt> subs = new List<AsnElt>();
-                off = valOff;
-                int lim = valOff + valLen;
-                while (off < lim)
-                {
-                    AsnElt b = DecodeNoCopy(buf, off, lim - off);
-                    off += b.objLen;
-                    subs.Add(b);
-                }
-                result._sub = subs.ToArray();
-            }
-            else
-            {
-                result._sub = null;
-            }
-            return result;
-        }
-
-        /* Decode the tag and length, and get the value offset and length. Returned value if the
-         * total object length. Note: when an object has indefinite length, the terminated "null
-         * tag" will NOT be considered part of the "value length". */
-        static int Decode(byte[] buf, int off, int maxLen, out int tc, out int tv, out bool cons,
-            out int valOff, out int valLen)
-        {
-            int lim = off + maxLen;
-            int orig = off;
+            int lim = offset + maxLength;
+            int orig = offset;
 
             /* Decode tag. */
-            CheckOff(off, lim);
-            tv = buf[off++];
-            cons = (tv & 0x20) != 0;
-            tc = tv >> 6;
-            tv &= 0x1F;
-            if (tv == 0x1F)
-            {
-                tv = 0;
-                while (true)
-                {
-                    CheckOff(off, lim);
-                    int c = buf[off++];
-                    if (tv > 0xFFFFFF) { throw new AsnException("tag value overflow"); }
-                    tv = (tv << 7) | (c & 0x7F);
+            AssertOffsetValue(offset, lim);
+            tagValue = buffer[offset++];
+            constructed = (tagValue & 0x20) != 0;
+            tagClass = tagValue >> 6;
+            tagValue &= 0x1F;
+            if (0x1F == tagValue) {
+                tagValue = 0;
+                while (true) {
+                    AssertOffsetValue(offset, lim);
+                    int c = buffer[offset++];
+                    if (tagValue > 0xFFFFFF) {
+                        throw new AsnException("tag value overflow");
+                    }
+                    tagValue = (tagValue << 7) | (c & 0x7F);
                     if ((c & 0x80) == 0) { break; }
                 }
             }
 
             /* Decode length. */
-            CheckOff(off, lim);
-            int vlen = buf[off++];
-            if (vlen == 0x80)
-            {
+            AssertOffsetValue(offset, lim);
+            int vlen = buffer[offset++];
+            if (0x80 == vlen) {
                 /* Indefinite length. This is not strict DER, bu we allow it nonetheless; we must
                  * check that the value was tagged as constructed, though. */
                 vlen = -1;
-                if (!cons) { throw new AsnException("indefinite length" + " but not constructed"); }
+                if (!constructed) {
+                    throw new AsnException("indefinite length but not constructed");
+                }
             }
-            else if (vlen > 0x80)
-            {
+            else if (0x80 < vlen) {
                 int lenlen = vlen - 0x80;
-                CheckOff(off + lenlen - 1, lim);
+                AssertOffsetValue(offset + lenlen - 1, lim);
                 vlen = 0;
-                while (lenlen-- > 0)
-                {
-                    if (vlen > 0x7FFFFF) { throw new AsnException("length overflow"); }
-                    vlen = (vlen << 8) + buf[off++];
+                while (lenlen-- > 0) {
+                    if (vlen > 0x7FFFFF) {
+                        throw new AsnException("length overflow");
+                    }
+                    vlen = (vlen << 8) + buffer[offset++];
                 }
             }
 
             /* Length was decoded, so the value starts here. */
-            valOff = off;
+            valueOffset = offset;
 
             /* If length is indefinite then we must explore sub-objects to get the value length. */
-            if (vlen < 0)
-            {
-                while (true)
-                {
+            if (0 > vlen) {
+                while (true) {
                     int tc2, tv2, valOff2, valLen2;
                     bool cons2;
-                    int slen = Decode(buf, off, lim - off, out tc2, out tv2, out cons2, out valOff2, out valLen2);
-                    if (tc2 == 0 && tv2 == 0)
-                    {
+                    int slen = Decode(buffer, offset, lim - offset, out tc2, out tv2, out cons2, out valOff2, out valLen2);
+                    if (tc2 == 0 && tv2 == 0) {
                         if (cons2 || valLen2 != 0) { throw new AsnException("invalid null tag"); }
-                        valLen = off - valOff;
-                        off += slen;
+                        valueLength = offset - valueOffset;
+                        offset += slen;
                         break;
                     }
-                    off += slen;
+                    offset += slen;
                 }
             }
-            else
-            {
-                if (vlen > (lim - off)) { throw new AsnException("value overflow"); }
-                off += vlen;
-                valLen = off - valOff;
+            else {
+                if (vlen > (lim - offset)) {
+                    throw new AsnException("value overflow");
+                }
+                offset += vlen;
+                valueLength = offset - valueOffset;
             }
-            return off - orig;
+            return offset - orig;
         }
 
-        private static void CheckOff(int offset, int limitExcluded)
+        /// <summary>Internal recursive decoder. The provided array is NOT copied. Trailing garbage
+        /// is ignored(caller should use the 'objLen' field to learn the total object length).</summary>
+        /// <param name="buffer"></param>
+        /// <param name="offset"></param>
+        /// <param name="length"></param>
+        /// <returns></returns>
+        private static AsnElt DecodeNoCopy(byte[] buffer, int offset, int length)
         {
-            if (offset >= limitExcluded)
-            {
-                throw new AsnException("offset overflow");
+            int tagClass, tagValue, valueOffset, vauleLength;
+            bool constructed;
+            int objectLength = Decode(buffer, offset, length, out tagClass, out tagValue,
+                out constructed, out valueOffset, out vauleLength);
+            AsnElt result = new AsnElt(tagClass, tagValue) {
+                _objectBuffer = buffer,
+                _objectOffset = offset,
+                _objectLength = objectLength,
+                _valueOffset = valueOffset,
+                _valueLength = vauleLength,
+                _hasEncodedHeader = true
+            };
+            if (constructed) {
+                List<AsnElt> subs = new List<AsnElt>();
+                offset = valueOffset;
+                int lim = valueOffset + vauleLength;
+                while (offset < lim) {
+                    AsnElt b = DecodeNoCopy(buffer, offset, lim - offset);
+                    offset += b._objectLength;
+                    subs.Add(b);
+                }
+                result._sub = subs.ToArray();
             }
+            else {
+                result._sub = null;
+            }
+            return result;
         }
 
-        /* Get a specific byte from the value. This provided offset is relative to the value start
-         * (first value byte has offset 0). */
-        public int ValueByte(int off)
-        {
-            if (off < 0)
-            {
-                throw new AsnException("invalid value offset: " + off);
-            }
-            if (objBuf == null)
-            {
-                int k = 0;
-                foreach (AsnElt a in this.EnumerateElements())
-                {
-                    int slen = a.EncodedLength;
-                    if ((k + slen) > off)
-                    {
-                        return a.ValueByte(off - k);
-                    }
-                }
-            }
-            else
-            {
-                if (off < valLen)
-                {
-                    return objBuf[valOff + off];
-                }
-            }
-            throw new AsnException(String.Format("invalid value offset {0} (length = {1})",
-                off, ValueLength));
-        }
-
-        /* Encode this object into a newly allocated array. */
-        public byte[] Encode()
+        /// <summary>Encode this object into a newly allocated array.</summary>
+        /// <returns></returns>
+        internal byte[] Encode()
         {
             byte[] r = new byte[EncodedLength];
             Encode(r, 0);
             return r;
         }
 
-        /* Encode this object into the provided array. Encoded object length is returned. */
-        public int Encode(byte[] dst, int off)
+        /// <summary>Encode this object into the provided array. Encoded object length is returned.</summary>
+        /// <param name="dst"></param>
+        /// <param name="off"></param>
+        /// <returns></returns>
+        private int Encode(byte[] dst, int off)
         {
             return Encode(0, Int32.MaxValue, dst, off);
         }
 
-        /* Encode this object into the provided array. Only bytes at offset between 'start'
-         * (inclusive) and 'end' (exclusive) are actually written. The number of written bytes
-         * is returned. Offsets are relative to the object start (first tag byte). */
-        int Encode(int start, int end, byte[] dst, int dstOff)
+        /// <summary>Encode this object into the provided array. Only bytes at offset between
+        /// 'start' (inclusive) and 'end' (exclusive) are actually written.The number of written
+        /// bytes is returned.Offsets are relative to the object start (first tag byte).</summary>
+        /// <param name="startInclusive"></param>
+        /// <param name="endExclusive"></param>
+        /// <param name="buffer"></param>
+        /// <param name="bufferOffset"></param>
+        /// <returns></returns>
+        private int Encode(int startInclusive, int endExclusive, byte[] buffer, int bufferOffset)
         {
-            /* If the encoded value is already known, then we just dump it. */
-            if (hasEncodedHeader)
-            {
-                int from = objOff + Math.Max(0, start);
-                int to = objOff + Math.Min(objLen, end);
-                int len = to - from;
-                if (len > 0)
-                {
-                    Array.Copy(objBuf, from, dst, dstOff, len);
-                    return len;
+            if (0 > startInclusive) {
+                throw new ArgumentOutOfRangeException("startInclusive");
+            }
+            if (startInclusive >= endExclusive) {
+                throw new ArgumentOutOfRangeException("endExclusive");
+            }
+            // If the encoded value is already known, then we just dump it.
+            if (_hasEncodedHeader) {
+                int objectBufferStartOffset = _objectOffset + Math.Max(0, startInclusive);
+                int objectBufferEndOffset = _objectOffset + Math.Min(_objectLength, endExclusive);
+                int length = objectBufferEndOffset - objectBufferStartOffset;
+                if (0 < length) {
+                    Array.Copy(_objectBuffer, objectBufferStartOffset, buffer, bufferOffset, length);
+                    return length;
                 }
                 return 0;
             }
-            int off = 0;
-            /* Encode tag. */
-            int fb = (_tagClass << 6) + (IsConstructed ? 0x20 : 0x00);
-            if (TagValue < 0x1F)
-            {
-                fb |= (TagValue & 0x1F);
-                if (start <= off && off < end)
-                {
-                    dst[dstOff++] = (byte)fb;
+            int encodedLength = 0;
+            // Encode tag.
+            int headerByte = (_tagClass << 6) + (IsConstructed ? 0x20 : 0x00);
+            if (0x1F > TagValue) {
+                headerByte |= (TagValue & 0x1F);
+                if (startInclusive <= encodedLength && encodedLength < endExclusive) {
+                    buffer[bufferOffset++] = (byte)headerByte;
                 }
-                off++;
+                encodedLength++;
             }
-            else
-            {
-                fb |= 0x1F;
-                if (start <= off && off < end)
-                {
-                    dst[dstOff++] = (byte)fb;
+            else {
+                headerByte |= 0x1F;
+                if (startInclusive <= encodedLength && encodedLength < endExclusive) {
+                    buffer[bufferOffset++] = (byte)headerByte;
                 }
-                off++;
+                encodedLength++;
                 int k = 0;
-                for (int v = TagValue; v > 0; v >>= 7, k += 7) ;
-                while (k > 0)
-                {
+                for (int v = TagValue; v > 0; v >>= 7, k += 7) { }
+                while (k > 0) {
                     k -= 7;
                     int v = (TagValue >> k) & 0x7F;
-                    if (k != 0)
-                    {
+                    if (k != 0) {
                         v |= 0x80;
                     }
-                    if (start <= off && off < end)
-                    {
-                        dst[dstOff++] = (byte)v;
+                    if (startInclusive <= encodedLength && encodedLength < endExclusive) {
+                        buffer[bufferOffset++] = (byte)v;
                     }
-                    off++;
+                    encodedLength++;
                 }
             }
 
             /* Encode length. */
-            int vlen = ValueLength;
-            if (vlen < 0x80)
-            {
-                if (start <= off && off < end)
-                {
-                    dst[dstOff++] = (byte)vlen;
+            int valueLength = ValueLength;
+            if (0x80 > valueLength) {
+                if (startInclusive <= encodedLength && encodedLength < endExclusive) {
+                    buffer[bufferOffset++] = (byte)valueLength;
                 }
-                off++;
+                encodedLength++;
             }
-            else
-            {
+            else {
                 int k = 0;
-                for (int v = vlen; v > 0; v >>= 8, k += 8) ;
-                if (start <= off && off < end)
-                {
-                    dst[dstOff++] = (byte)(0x80 + (k >> 3));
+                for (int v = valueLength; v > 0; v >>= 8, k += 8) { }
+                if (startInclusive <= encodedLength && encodedLength < endExclusive) {
+                    buffer[bufferOffset++] = (byte)(0x80 + (k >> 3));
                 }
-                off++;
-                while (k > 0)
-                {
+                encodedLength++;
+                while (k > 0) {
                     k -= 8;
-                    if (start <= off && off < end)
-                    {
-                        dst[dstOff++] = (byte)(vlen >> k);
+                    if (startInclusive <= encodedLength && encodedLength < endExclusive) {
+                        buffer[bufferOffset++] = (byte)(valueLength >> k);
                     }
-                    off++;
+                    encodedLength++;
                 }
             }
 
             /* Encode value. We must adjust the start/end window to make it relative to the value. */
-            EncodeValue(start - off, end - off, dst, dstOff);
-            off += vlen;
+            EncodeValue(startInclusive - encodedLength, endExclusive - encodedLength, buffer, bufferOffset);
+            encodedLength += valueLength;
 
-            /* Compute copied length. */
-            return Math.Max(0, Math.Min(off, end) - Math.Max(0, start));
+            // Compute copied length.
+            return Math.Max(0, Math.Min(encodedLength, endExclusive) - Math.Max(0, startInclusive));
         }
 
-        /* Encode the value into the provided buffer. Only value bytes at offsets between 'start'
-         * (inclusive) and 'end' (exclusive) are written. Actual number of written bytes is
-         * returned. Offsets are relative to the start of the value. */
-        int EncodeValue(int start, int end, byte[] dst, int dstOff)
+        /// <summary>Encode the value into the provided buffer. Only value bytes at offsets
+        /// between 'start' (inclusive) and 'end' (exclusive) are written.Actual number of
+        /// written bytes is returned.Offsets are relative to the start of the value.</summary>
+        /// <param name="startInclusive"></param>
+        /// <param name="endExclusive"></param>
+        /// <param name="buffer"></param>
+        /// <param name="bufferOffset"></param>
+        /// <returns></returns>
+        private int EncodeValue(int startInclusive, int endExclusive, byte[] buffer, int bufferOffset)
         {
-            int orig = dstOff;
-            if (objBuf == null)
-            {
+            if (0 > startInclusive) {
+                throw new IndexOutOfRangeException("startInclusive");
+            }
+            if (startInclusive > endExclusive) {
+                throw new IndexOutOfRangeException("endExclusive");
+            }
+            int initialBufferOffset = bufferOffset;
+            if (null == _objectBuffer) {
                 int k = 0;
-                foreach (AsnElt a in this.EnumerateElements())
-                {
-                    int slen = a.EncodedLength;
-                    dstOff += a.Encode(start - k, end - k, dst, dstOff);
+                foreach (AsnElt item in this.EnumerateElements()) {
+                    int slen = item.EncodedLength;
+                    bufferOffset += item.Encode(startInclusive - k, endExclusive - k, buffer, bufferOffset);
                     k += slen;
                 }
             }
-            else
-            {
-                int from = Math.Max(0, start);
-                int to = Math.Min(valLen, end);
+            else {
+                int from = Math.Max(0, startInclusive);
+                int to = Math.Min(_valueLength, endExclusive);
                 int len = to - from;
-                if (len > 0)
-                {
-                    Array.Copy(objBuf, valOff + from, dst, dstOff, len);
-                    dstOff += len;
+                if (0 < len) {
+                    Array.Copy(_objectBuffer, _valueOffset + from, buffer, bufferOffset, len);
+                    bufferOffset += len;
                 }
             }
-            return dstOff - orig;
+            return bufferOffset - initialBufferOffset;
         }
 
-        /* Copy a value chunk. The provided offset ('off') and length ('len') define the chunk to
-         * copy; the offset is relative to the value start (first value byte has offset 0). If the
-         * requested window exceeds the value boundaries, an exception is thrown. */
-        public void CopyValueChunk(int off, int len, byte[] dst, int dstOff)
+        /// <summary>An enumerator of the sub-elements of the object.</summary>
+        /// <returns></returns>
+        public IEnumerable<AsnElt> EnumerateElements()
         {
-            int vlen = ValueLength;
-            if (off < 0 || len < 0 || len > (vlen - off))
-            {
-                throw new AsnException(String.Format(
-                    "invalid value window {0}:{1}"
-                    + " (value length = {2})", off, len, vlen));
+            foreach (AsnElt item in _sub) { yield return item; }
+            yield break;
+        }
+
+        /// <summary>Interpret the value as a BIT STRING. The bits are returned, with the
+        /// "ignored bits" cleared.The actual bit length is written in 'bitLength'.</summary>
+        /// <param name="bitLength"></param>
+        /// <returns></returns>
+        public byte[] GetBitString(out int bitLength)
+        {
+            AssertPrimitive();
+            int valueLength = ValueLength;
+            if (0 == valueLength) {
+                throw new AsnException("invalid BIT STRING (length = 0)");
             }
-            EncodeValue(off, off + len, dst, dstOff);
-        }
-
-        /* Copy the value into the specified array. The value length is returned. */
-        public int CopyValue(byte[] dst, int off)
-        {
-            return EncodeValue(0, Int32.MaxValue, dst, off);
-        }
-
-        /* Get a copy of the value as a freshly allocated array. */
-        public byte[] CopyValue()
-        {
-            byte[] r = new byte[ValueLength];
-            EncodeValue(0, r.Length, r, 0);
-            return r;
-        }
-
-        /* Get the value. This may return a shared buffer, that MUST NOT be modified. */
-        byte[] GetValue(out int off, out int len)
-        {
-            if (objBuf == null)
-            {
-                /* We can modify objBuf because CopyValue() called ValueLength, thus valLen has
-                 * been filled. */
-                objBuf = CopyValue();
-                off = 0;
-                len = objBuf.Length;
+            int headerByte = ValueByte(0);
+            if ((7 < headerByte) || ((1 == valueLength) && (0 != headerByte))) {
+                throw new AsnException(String.Format("invalid BIT STRING (start = 0x{0:X2})", headerByte));
             }
-            else
-            {
-                off = valOff;
-                len = valLen;
+            byte[] result = new byte[valueLength - 1];
+            CopyValueChunk(1, valueLength - 1, result, 0);
+            if (valueLength > 1) {
+                result[result.Length - 1] &= (byte)(0xFF << headerByte);
             }
-            return objBuf;
+            bitLength = (result.Length << 3) - headerByte;
+            return result;
         }
 
-        /* Interpret the value as a BOOLEAN. */
+        /// <summary>Interpret the value as a BOOLEAN.</summary>
+        /// <returns></returns>
         public bool GetBoolean()
         {
             AssertPrimitive();
-            int vlen = ValueLength;
-            if (vlen != 1)
-            {
-                throw new AsnException(String.Format("invalid BOOLEAN (length = {0})", vlen));
+            int valueLength = ValueLength;
+            if (valueLength != 1) {
+                throw new AsnException(String.Format("invalid BOOLEAN (length = {0})", valueLength));
             }
             return ValueByte(0) != 0;
         }
 
-        /* Interpret the value as an INTEGER. An exception is thrown if the value does not fit in
-         * a 'long'. */
-        public long GetInteger()
+        /// <summary>Interpret the value as a BIT STRING. The bits are returned, with the
+        /// "ignored bits" cleared.</summary>
+        /// <returns></returns>
+        public byte[] GetBitString()
+        {
+            int bitLength;
+            return GetBitString(out bitLength);
+        }
+
+        /// <summary>Interpret the value as an INTEGER. An exception is thrown if the value
+        /// is outside of the provided range or does not fit in a 'long'.</summary>
+        /// <returns></returns>
+        public long GetInteger(long min = long.MinValue, long max = long.MaxValue)
         {
             AssertPrimitive();
-            int vlen = ValueLength;
-            if (vlen == 0)
-            {
+            int valueLength = ValueLength;
+            if (0 == valueLength) {
                 throw new AsnException("invalid INTEGER (length = 0)");
             }
-            int v = ValueByte(0);
-            long x;
-            if ((v & 0x80) != 0)
-            {
-                x = -1;
-                for (int k = 0; k < vlen; k++)
-                {
-                    if (x < ((-1L) << 55))
-                    {
+            int mostSignificantValueByte = ValueByte(0);
+            long result;
+            if (0 != (mostSignificantValueByte & 0x80)) {
+                // This is a negative number.
+                result = -1;
+                for (int k = 0; k < valueLength; k++) {
+                    if (result < ((-1L) << 55)) {
                         throw new AsnException("integer overflow (negative)");
                     }
-                    x = (x << 8) + (long)ValueByte(k);
+                    result = (result << 8) + (long)ValueByte(k);
                 }
             }
-            else
-            {
-                x = 0;
-                for (int k = 0; k < vlen; k++)
-                {
-                    if (x >= (1L << 55))
-                    {
+            else {
+                // This is a positive number.
+                result = 0;
+                for (int k = 0; k < valueLength; k++) {
+                    if (result >= (1L << 55)) {
                         throw new AsnException("integer overflow (positive)");
                     }
-                    x = (x << 8) + (long)ValueByte(k);
+                    result = (result << 8) + (long)ValueByte(k);
                 }
             }
-            return x;
-        }
-
-        /* Interpret the value as an INTEGER. An exception is thrown if the value is outside of
-         * the provided range. */
-        public long GetInteger(long min, long max)
-        {
-            long v = GetInteger();
-            if (v < min || v > max)
-            {
+            if ((result < min) || (result > max)) {
                 throw new AsnException("integer out of allowed range");
             }
-            return v;
+            return result;
         }
 
-        /* Interpret the value as an INTEGER. Return its hexadecimal representation (uppercase),
-         * preceded by a '0x' or '-0x' header, depending on the integer sign. The number of
-         * hexadecimal digits is even. Leading zeroes are returned (but one may remain, to ensure
-         * an even number of digits). If the integer has value 0, then 0x00 is returned. */
+        /// <summary>Interpret the value as an INTEGER. Return its hexadecimal representation
+        /// (uppercase), preceded by a '0x' or '-0x' header, depending on the integer sign.
+        /// The number of hexadecimal digits is even.Leading zeroes are returned(but one may
+        /// remain, to ensure an even number of digits). If the integer has value 0, then 0x00
+        /// is returned.</summary>
+        /// <returns></returns>
         public string GetIntegerHex()
         {
             AssertPrimitive();
-            int vlen = ValueLength;
-            if (vlen == 0)
-            {
+            int valueLength = ValueLength;
+            if (0 == valueLength) {
                 throw new AsnException("invalid INTEGER (length = 0)");
             }
-            StringBuilder sb = new StringBuilder();
+            StringBuilder builder = new StringBuilder();
             byte[] tmp = CopyValue();
-            if (tmp[0] >= 0x80)
-            {
-                sb.Append('-');
+            if (0x80 <= tmp[0]) {
+                builder.Append('-');
                 int cc = 1;
-                for (int i = tmp.Length - 1; i >= 0; i--)
-                {
+                for (int i = tmp.Length - 1; i >= 0; i--) {
                     int v = ((~tmp[i]) & 0xFF) + cc;
                     tmp[i] = (byte)v;
                     cc = v >> 8;
                 }
             }
             int k = 0;
-            while (k < tmp.Length && tmp[k] == 0)
-            {
+            while (k < tmp.Length && tmp[k] == 0) {
                 k++;
             }
-            if (k == tmp.Length)
-            {
+            if (k == tmp.Length) {
                 return "0x00";
             }
-            sb.Append("0x");
-            while (k < tmp.Length)
-            {
-                sb.AppendFormat("{0:X2}", tmp[k++]);
+            builder.Append("0x");
+            while (k < tmp.Length) {
+                builder.AppendFormat("{0:X2}", tmp[k++]);
             }
-            return sb.ToString();
+            return builder.ToString();
         }
 
-        /* Interpret the value as an OCTET STRING. The value bytes are returned. This method
-         * supports constructed values and performs the reassembly. */
+        /// <summary>Get the encoded length for a length.</summary>
+        /// <param name="len"></param>
+        /// <returns></returns>
+        private static int GetLengthEncodedLength(int len)
+        {
+            if (0x80 > len) { return 1; }
+            int result = 1;
+            while (0 < len) {
+                result++;
+                len >>= 8;
+            }
+            return result;
+        }
+
+        /// <summary>Interpret the value as an OCTET STRING. The value bytes are returned.
+        /// This method supports constructed values and performs the reassembly.</summary>
+        /// <returns></returns>
         public byte[] GetOctetString()
         {
             int len = GetOctetString(null, 0);
@@ -772,117 +677,157 @@ namespace Rubeus.Asn1
             return r;
         }
 
-        /* Interpret the value as an OCTET STRING. The value bytes are written in dst[], starting
-         * at offset 'off', and the total value length is returned. If 'dst' is null, then no byte
-         * is written anywhere, but the total length is still returned. This method supports
-         * constructed values and performs the reassembly. */
-        public int GetOctetString(byte[] dst, int off)
+        /// <summary>Interpret the value as an OCTET STRING. The value bytes are written in
+        /// dst[], starting at offset 'off', and the total value length is returned.If 'dst'
+        /// is null, then no byte is written anywhere, but the total length is still returned.
+        /// This method supports constructed values and performs the reassembly.</summary>
+        /// <param name="buffer"></param>
+        /// <param name="offset"></param>
+        /// <returns></returns>
+        public int GetOctetString(byte[] buffer, int offset)
         {
-            if (IsConstructed)
-            {
-                int orig = off;
-                foreach (AsnElt ae in this.EnumerateElements())
-                {
-                    ae.CheckTag(AsnElt.OCTET_STRING);
-                    off += ae.GetOctetString(dst, off);
+            if (IsConstructed) {
+                int initialOffset = offset;
+                foreach (AsnElt item in this.EnumerateElements()) {
+                    item.AssertUniveralTagValue(AsnElt.OCTET_STRING);
+                    offset += item.GetOctetString(buffer, offset);
                 }
-                return off - orig;
+                return offset - initialOffset;
             }
-            if (dst != null)
-            {
-                return CopyValue(dst, off);
+            if (null != buffer) {
+                return EncodeValue(0, Int32.MaxValue, buffer, offset);
             }
             return ValueLength;
         }
 
-        /* Interpret the value as a BIT STRING. The bits are returned, with the "ignored bits"
-         * cleared. */
-        public byte[] GetBitString()
+        /// <summary>Get the encoded length for a tag.</summary>
+        /// <param name="tagValue"></param>
+        /// <returns></returns>
+        private static int GetTagLength(int tagValue)
         {
-            int bitLength;
-            return GetBitString(out bitLength);
+            if (0x1F >= tagValue) { return 1; }
+            int result = 1;
+            while (0 < tagValue) {
+                result++;
+                tagValue >>= 7;
+            }
+            return result;
         }
 
-        /* Interpret the value as a BIT STRING. The bits are returned, with the "ignored bits"
-         * cleared. The actual bit length is written in 'bitLength'. */
-        public byte[] GetBitString(out int bitLength)
+        private static string TagToString(int tagClass, int tagValue)
         {
-            AssertPrimitive();
-            int vlen = ValueLength;
-            if (vlen == 0)
-            {
-                throw new AsnException("invalid BIT STRING (length = 0)");
+            switch (tagClass) {
+                case APPLICATION:
+                    return "APPLICATION:" + tagValue;
+                case CONTEXT:
+                    return "CONTEXT:" + tagValue;
+                case PRIVATE:
+                    return "PRIVATE:" + tagValue;
+                case UNIVERSAL:
+                    switch (tagValue) {
+                        case BOOLEAN: return "BOOLEAN";
+                        case INTEGER: return "INTEGER";
+                        case BIT_STRING: return "BIT_STRING";
+                        case OCTET_STRING: return "OCTET_STRING";
+                        case NULL: return "NULL";
+                        case OBJECT_IDENTIFIER: return "OBJECT_IDENTIFIER";
+                        case Object_Descriptor: return "Object_Descriptor";
+                        case EXTERNAL: return "EXTERNAL";
+                        case REAL: return "REAL";
+                        case ENUMERATED: return "ENUMERATED";
+                        case EMBEDDED_PDV: return "EMBEDDED_PDV";
+                        case UTF8String: return "UTF8String";
+                        case RELATIVE_OID: return "RELATIVE_OID";
+                        case SEQUENCE: return "SEQUENCE";
+                        case SET: return "SET";
+                        case NumericString: return "NumericString";
+                        case PrintableString: return "PrintableString";
+                        case TeletexString: return "TeletexString";
+                        case VideotexString: return "VideotexString";
+                        case IA5String: return "IA5String";
+                        case UTCTime: return "UTCTime";
+                        case GeneralizedTime: return "GeneralizedTime";
+                        case GraphicString: return "GraphicString";
+                        case VisibleString: return "VisibleString";
+                        case GeneralString: return "GeneralString";
+                        case UniversalString: return "UniversalString";
+                        case CHARACTER_STRING: return "CHARACTER_STRING";
+                        case BMPString: return "BMPString";
+                        default:
+                            return String.Format("UNIVERSAL:" + tagValue);
+                    }
+                default:
+                    return string.Format("INVALID:{0}/{1}", tagClass, tagValue);
             }
-            int fb = ValueByte(0);
-            if (fb > 7 || (vlen == 1 && fb != 0))
-            {
-                throw new AsnException(String.Format("invalid BIT STRING (start = 0x{0:X2})", fb));
-            }
-            byte[] r = new byte[vlen - 1];
-            CopyValueChunk(1, vlen - 1, r, 0);
-            if (vlen > 1)
-            {
-                r[r.Length - 1] &= (byte)(0xFF << fb);
-            }
-            bitLength = (r.Length << 3) - fb;
-            return r;
         }
 
-        /* Interpret the value as a NULL. */
-        public void CheckNull()
+        /// <summary>Get a specific byte from the value. This provided offset is relative to
+        /// the value start (first value byte has offset 0).</summary>
+        /// <param name="offset"></param>
+        /// <returns></returns>
+        public int ValueByte(int offset)
         {
-            AssertPrimitive();
-            if (ValueLength != 0)
-            {
-                throw new AsnException(String.Format("invalid NULL (length = {0})", ValueLength));
+            if (0 > offset) {
+                throw new AsnException("invalid value offset: " + offset);
             }
+            if (null == _objectBuffer) {
+                int k = 0;
+                foreach (AsnElt item in this.EnumerateElements()) {
+                    int slen = item.EncodedLength;
+                    if ((k + slen) > offset) {
+                        return item.ValueByte(offset - k);
+                    }
+                }
+            }
+            else {
+                if (offset < _valueLength) {
+                    return _objectBuffer[_valueOffset + offset];
+                }
+            }
+            throw new AsnException(String.Format("invalid value offset {0} (length = {1})",
+                offset, ValueLength));
         }
+
+        // ==============================================================================
 
         /* Interpret the value as an OBJECT IDENTIFIER, and return it (in decimal-dotted string
          * format). */
         public string GetOID()
         {
             AssertPrimitive();
-            if (valLen == 0)
-            {
+            if (0 == _valueLength) {
                 throw new AsnException("zero-length OID");
             }
-            int v = objBuf[valOff];
-            if (v >= 120)
-            {
+            int v = _objectBuffer[_valueOffset];
+            if (120 <= v) {
                 throw new AsnException("invalid OID: first byte = " + v);
             }
-            StringBuilder sb = new StringBuilder();
-            sb.Append(v / 40);
-            sb.Append('.');
-            sb.Append(v % 40);
+            StringBuilder builder = new StringBuilder();
+            builder.Append(v / 40);
+            builder.Append('.');
+            builder.Append(v % 40);
             long acc = 0;
             bool uv = false;
-            for (int i = 1; i < valLen; i++)
-            {
-                v = objBuf[valOff + i];
-                if ((acc >> 56) != 0)
-                {
+            for (int i = 1; i < _valueLength; i++) {
+                v = _objectBuffer[_valueOffset + i];
+                if ((acc >> 56) != 0) {
                     throw new AsnException("invalid OID: integer overflow");
                 }
                 acc = (acc << 7) + (long)(v & 0x7F);
-                if ((v & 0x80) == 0)
-                {
-                    sb.Append('.');
-                    sb.Append(acc);
+                if ((v & 0x80) == 0) {
+                    builder.Append('.');
+                    builder.Append(acc);
                     acc = 0;
                     uv = false;
                 }
-                else
-                {
+                else {
                     uv = true;
                 }
             }
-            if (uv)
-            {
+            if (uv) {
                 throw new AsnException("invalid OID: truncated");
             }
-            return sb.ToString();
+            return builder.ToString();
         }
 
         /* Get the object value as a string. The string type is inferred from the tag. */
@@ -911,13 +856,13 @@ namespace Rubeus.Asn1
                 case TeletexString:
                 case UTCTime:
                 case GeneralizedTime:
-                    return DecodeMono(objBuf, valOff, valLen, type);
+                    return DecodeMono(_objectBuffer, _valueOffset, _valueLength, type);
                 case UTF8String:
-                    return DecodeUTF8(objBuf, valOff, valLen);
+                    return DecodeUTF8(_objectBuffer, _valueOffset, _valueLength);
                 case BMPString:
-                    return DecodeUTF16(objBuf, valOff, valLen);
+                    return DecodeUTF16(_objectBuffer, _valueOffset, _valueLength);
                 case UniversalString:
-                    return DecodeUTF32(objBuf, valOff, valLen);
+                    return DecodeUTF32(_objectBuffer, _valueOffset, _valueLength);
                 default:
                     throw new AsnException("unsupported string type: " + type);
             }
@@ -1604,13 +1549,13 @@ namespace Rubeus.Asn1
                 throw new AsnException("invalid tag value: " + tagValue);
             }
             AsnElt a = new AsnElt(tagClass, tagValue);
-            a.objBuf = new byte[len];
-            Array.Copy(val, off, a.objBuf, 0, len);
-            a.objOff = 0;
-            a.objLen = -1;
-            a.valOff = 0;
-            a.valLen = len;
-            a.hasEncodedHeader = false;
+            a._objectBuffer = new byte[len];
+            Array.Copy(val, off, a._objectBuffer, 0, len);
+            a._objectOffset = 0;
+            a._objectLength = -1;
+            a._valueOffset = 0;
+            a._valueLength = len;
+            a._hasEncodedHeader = false;
             a._sub = null;
             return a;
         }
@@ -1778,12 +1723,12 @@ namespace Rubeus.Asn1
             }
             AsnElt result = new AsnElt(tagClass, tagValue)
             {
-                objBuf = null,
-                objOff = 0,
-                objLen = -1,
-                valOff = 0,
-                valLen = -1,
-                hasEncodedHeader = false,
+                _objectBuffer = null,
+                _objectOffset = 0,
+                _objectLength = -1,
+                _valueOffset = 0,
+                _valueLength = -1,
+                _hasEncodedHeader = false,
             };
             if (null == subs)
             {
@@ -1802,12 +1747,12 @@ namespace Rubeus.Asn1
         public static AsnElt MakeSetOf(params AsnElt[] subs)
         {
             AsnElt a = new AsnElt(UNIVERSAL, SET);
-            a.objBuf = null;
-            a.objOff = 0;
-            a.objLen = -1;
-            a.valOff = 0;
-            a.valLen = -1;
-            a.hasEncodedHeader = false;
+            a._objectBuffer = null;
+            a._objectOffset = 0;
+            a._objectLength = -1;
+            a._valueOffset = 0;
+            a._valueLength = -1;
+            a._hasEncodedHeader = false;
             if (subs == null)
             {
                 a._sub = new AsnElt[0];
@@ -1847,18 +1792,27 @@ namespace Rubeus.Asn1
          * is returned. */
         public static AsnElt MakeImplicit(int tagClass, int tagValue, AsnElt x)
         {
-            if (x.IsConstructed)
-            {
+            if (x.IsConstructed) {
                 return Make(tagClass, tagValue, x._sub);
             }
-            AsnElt result = new AsnElt(tagClass, tagValue)
-            {
-                objOff = 0,
-                objLen = -1,
-                hasEncodedHeader = false,
+            AsnElt result = new AsnElt(tagClass, tagValue) {
+                _objectOffset = 0,
+                _objectLength = -1,
+                _hasEncodedHeader = false,
                 _sub = null
             };
-            result.objBuf = x.GetValue(out result.valOff, out result.valLen);
+            /* Get the value. This may return a shared buffer, that MUST NOT be modified. */
+            if (null == x._objectBuffer) {
+                /* We can modify objBuf because CopyValue() called ValueLength, thus valLen has been filled. */
+                x._objectBuffer = x.CopyValue();
+                result._valueOffset = 0;
+                result._valueLength = x._objectBuffer.Length;
+            }
+            else {
+                result._valueOffset = x._valueOffset;
+                result._valueLength = x._valueLength;
+            }
+            result._objectBuffer = x._objectBuffer;
             return result;
         }
 
@@ -1869,44 +1823,35 @@ namespace Rubeus.Asn1
             List<long> r = new List<long>();
             int n = str.Length;
             long x = -1;
-            for (int i = 0; i < n; i++)
-            {
+            for (int i = 0; i < n; i++) {
                 int c = str[i];
-                if (c == '.')
-                {
-                    if (x < 0)
-                    {
+                if (c == '.') {
+                    if (x < 0) {
                         throw new AsnException("invalid OID (empty element)");
                     }
                     r.Add(x);
                     x = -1;
                     continue;
                 }
-                if (c < '0' || c > '9')
-                {
+                if (c < '0' || c > '9') {
                     throw new AsnException(String.Format("invalid character U+{0:X4} in OID", c));
                 }
-                if (x < 0)
-                {
+                if (x < 0) {
                     x = 0;
                 }
-                else if (x > ((Int64.MaxValue - 9) / 10))
-                {
+                else if (x > ((Int64.MaxValue - 9) / 10)) {
                     throw new AsnException("OID element overflow");
                 }
                 x = x * (long)10 + (long)(c - '0');
             }
-            if (x < 0)
-            {
+            if (x < 0) {
                 throw new AsnException("invalid OID (empty element)");
             }
             r.Add(x);
-            if (r.Count < 2)
-            {
+            if (r.Count < 2) {
                 throw new AsnException("invalid OID (not enough elements)");
             }
-            if (r[0] > 2 || r[1] > 40)
-            {
+            if (r[0] > 2 || r[1] > 40) {
                 throw new AsnException("invalid OID (first elements out of range)");
             }
             MemoryStream ms = new MemoryStream();
@@ -1947,8 +1892,7 @@ namespace Rubeus.Asn1
         {
             VerifyChars(value.ToCharArray(), type);
             byte[] buf;
-            switch (type)
-            {
+            switch (type) {
                 case NumericString:
                 case PrintableString:
                 case UTCTime:
@@ -1976,8 +1920,7 @@ namespace Rubeus.Asn1
         {
             byte[] result = new byte[str.Length];
             int k = 0;
-            foreach (char c in str)
-            {
+            foreach (char c in str) {
                 result[k++] = (byte)c;
             }
             return result;
@@ -1988,11 +1931,9 @@ namespace Rubeus.Asn1
         private static int CodePoint(string str, ref int off)
         {
             int result = str[off++];
-            if (result >= 0xD800 && result < 0xDC00 && off < str.Length)
-            {
+            if (result >= 0xD800 && result < 0xDC00 && off < str.Length) {
                 int d = str[off];
-                if (d >= 0xDC00 && d < 0xE000)
-                {
+                if ((0xDC00 <= d) && (0xE000 > d)) {
                     result = ((result & 0x3FF) << 10) + (d & 0x3FF) + 0x10000;
                     off++;
                 }
@@ -2005,26 +1946,21 @@ namespace Rubeus.Asn1
             int k = 0;
             int n = str.Length;
             MemoryStream ms = new MemoryStream();
-            while (k < n)
-            {
+            while (k < n) {
                 int cp = CodePoint(str, ref k);
-                if (cp < 0x80)
-                {
+                if (0x80 > cp) {
                     ms.WriteByte((byte)cp);
                 }
-                else if (cp < 0x800)
-                {
+                else if (0x800 > cp) {
                     ms.WriteByte((byte)(0xC0 + (cp >> 6)));
                     ms.WriteByte((byte)(0x80 + (cp & 63)));
                 }
-                else if (cp < 0x10000)
-                {
+                else if (0x10000 > cp) {
                     ms.WriteByte((byte)(0xE0 + (cp >> 12)));
                     ms.WriteByte((byte)(0x80 + ((cp >> 6) & 63)));
                     ms.WriteByte((byte)(0x80 + (cp & 63)));
                 }
-                else
-                {
+                else {
                     ms.WriteByte((byte)(0xF0 + (cp >> 18)));
                     ms.WriteByte((byte)(0x80 + ((cp >> 12) & 63)));
                     ms.WriteByte((byte)(0x80 + ((cp >> 6) & 63)));
@@ -2036,14 +1972,13 @@ namespace Rubeus.Asn1
 
         private static byte[] EncodeUTF16(string str)
         {
-            byte[] buf = new byte[str.Length << 1];
+            byte[] result = new byte[str.Length << 1];
             int k = 0;
-            foreach (char c in str)
-            {
-                buf[k++] = (byte)(c >> 8);
-                buf[k++] = (byte)c;
+            foreach (char c in str) {
+                result[k++] = (byte)(c >> 8);
+                result[k++] = (byte)c;
             }
-            return buf;
+            return result;
         }
 
         private static byte[] EncodeUTF32(string str)
@@ -2117,7 +2052,7 @@ namespace Rubeus.Asn1
         public static AsnElt MakeTimeAuto(DateTime dt)
         {
             dt = dt.ToUniversalTime();
-            return MakeTime((dt.Year >= 1950 && dt.Year <= 2049) ? UTCTime : GeneralizedTime, dt);
+            return MakeTime(((1950 <= dt.Year) && (2049 >= dt.Year)) ? UTCTime : GeneralizedTime, dt);
         }
 
         /* Create a time value with an automatic type selection (UTCTime if year is in the
@@ -2166,12 +2101,12 @@ namespace Rubeus.Asn1
         public const int CONTEXT = 2;
         public const int PRIVATE = 3;
 
-        private byte[] objBuf;
-        private int objOff;
-        private int objLen;
-        private int valOff;
-        private int valLen;
-        private bool hasEncodedHeader;
+        private bool _hasEncodedHeader;
+        private byte[] _objectBuffer;
+        private int _objectOffset;
+        private int _objectLength;
+        private int _valueOffset;
+        private int _valueLength;
 
         /* The sub-elements. This is null if this element is primitive.
          * DO NOT MODIFY this array. */
